@@ -1,0 +1,19 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 510ead6d5a9ffcf4badc0794b7bacf11, type: 3}
+  m_Name: DamagePlusOne
+  m_EditorClassIdentifier: Assembly-CSharp::UpgradeOption
+  displayName: "\u4F24\u5BB3 +1"
+  description: "\u5B50\u5F39\u4F24\u5BB3\u589E\u52A0 1"
+  type: 0
+  value: 1
+  skillCard: {fileID: 11400000, guid: 6d1e8641606ea7649bcc8681187e82a3, type: 2}

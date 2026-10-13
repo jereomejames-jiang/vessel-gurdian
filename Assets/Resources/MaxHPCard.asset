@@ -1,0 +1,20 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b99ddcecb61c64541befcc8d0e39fd8e, type: 3}
+  m_Name: MaxHPCard
+  m_EditorClassIdentifier: Assembly-CSharp::SkillCardDefinition
+  cardId: MaxHP
+  displayName: "\u8840\u91CF +2"
+  description: "\u6700\u5927\u751F\u547D\u503C\u589E\u52A0 2"
+  educationText: "\u5C11\u76D0\u5C11\u6CB9\u3001\u591A\u852C\u679C\uFF0C\u914D\u5408\u4F53\u68C0\u53EF\u4EE5\u66F4\u65E9\u53D1\u73B0\u98CE\u9669\u3002"
+  linkedUpgradeType: 3
+  cardColor: {r: 1, g: 1, b: 1, a: 1}
