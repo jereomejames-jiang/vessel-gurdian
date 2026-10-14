@@ -12,15 +12,17 @@ public class CardRevealUI : MonoBehaviour
     public Text educationText;
     public Image glowBorder;
 
-    private float showDuration = 2.8f;
-    private float timer;
-    private bool isShowing;
-    private Font displayFont;
+    public float showDuration = 2.8f;
+    public float timer;
+    public bool isShowing;
+    public Font displayFont;
 
     void Awake()
     {
         Instance = this;
         displayFont = Font.CreateDynamicFontFromOSFont(new[] { "Microsoft YaHei", "SimHei", "Arial" }, 24);
+        if (revealPanel != null && displayFont != null)
+            foreach (Text label in revealPanel.GetComponentsInChildren<Text>(true)) label.font = displayFont;
         if (revealPanel != null) revealPanel.SetActive(false);
     }
 
@@ -73,13 +75,14 @@ public class CardRevealUI : MonoBehaviour
         if (timer >= showDuration) Dismiss();
     }
 
-    void Dismiss()
+    public void Dismiss()
     {
         isShowing = false;
-        revealPanel.SetActive(false);
+        if (revealPanel != null) revealPanel.SetActive(false);
 
         LevelUpManager levels = FindAnyObjectByType<LevelUpManager>();
-        if (levels != null && !levels.isChoosing &&
+        if ((levels == null || !levels.isChoosing) &&
+            (SkillCodexManager.Instance == null || !SkillCodexManager.Instance.panelOpen) &&
             (GameManager.Instance == null || !GameManager.Instance.gameEnded))
         {
             Time.timeScale = 1f;

@@ -2,7 +2,7 @@ using UnityEngine;
 using UnityEngine.UI;
 
 // Procedural brass frame and parchment: no external art or material dependency.
-public class KnowledgePlateGraphic : MaskableGraphic
+public class KnowledgePlateGraphic : Image
 {
     public Color accent = new Color(0.16f, 0.65f, 0.85f);
     public bool medallion;

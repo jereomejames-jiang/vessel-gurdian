@@ -22,6 +22,8 @@ public class LevelUpManager : MonoBehaviour
 
     public void Subscribe()
     {
+        if (allUpgrades == null || allUpgrades.Length == 0)
+            allUpgrades = Resources.LoadAll<UpgradeOption>("");
         if (playerStats == null) playerStats = FindAnyObjectByType<PlayerStats>();
         if (playerController == null) playerController = FindAnyObjectByType<PlayerController>();
         if (autoAttack == null) autoAttack = FindAnyObjectByType<AutoAttack>();
@@ -59,7 +61,7 @@ public class LevelUpManager : MonoBehaviour
             currentChoices = Array.Empty<UpgradeOption>();
             OnChoicesClosed?.Invoke();
             if (GameManager.Instance == null || !GameManager.Instance.gameEnded) Time.timeScale = 1f;
-            Debug.LogWarning("VesselGuard: 请先通过完全重建场景创建升级选项。");
+            Debug.LogWarning("VesselGuard: Resources 中没有可用的升级选项。");
             return;
         }
 
@@ -109,10 +111,14 @@ public class LevelUpManager : MonoBehaviour
         else { OnChoicesClosed?.Invoke(); }
         OnUpgradeApplied?.Invoke(option);
 
+        // Finish queued choices before showing a reveal or releasing the pause.
+        if (isChoosing) return;
+
         SkillCardDefinition card = null;
         if (option.skillCard != null) card = option.skillCard;
         else if (SkillCodexManager.Instance != null) card = SkillCodexManager.Instance.GetCardFor(option);
-        if (card != null && CardRevealUI.Instance != null) CardRevealUI.Instance.Show(card);
+        if (card != null && CardRevealUI.Instance != null && CardRevealUI.Instance.revealPanel != null)
+            CardRevealUI.Instance.Show(card);
         else if (GameManager.Instance == null || !GameManager.Instance.gameEnded) Time.timeScale = 1f;
     }
 }

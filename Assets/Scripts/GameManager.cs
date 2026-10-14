@@ -14,6 +14,8 @@ public class GameManager : MonoBehaviour
     public KnowledgeTicker knowledgeTicker;
     public LevelUpManager levelUpManager;
     public PlayerSkillCollection playerSkillCollection;
+    public int selectedLevel = 1;
+    public string selectedLevelName = "血管起点";
     public event Action<bool> OnGameEnded;
 
     void Awake()
@@ -26,6 +28,8 @@ public class GameManager : MonoBehaviour
         if (knowledgeTicker == null) knowledgeTicker = GetComponent<KnowledgeTicker>();
         if (knowledgeTicker == null) knowledgeTicker = gameObject.AddComponent<KnowledgeTicker>();
         Time.timeScale = 1f;
+        selectedLevel = Mathf.Clamp(PlayerPrefs.GetInt("VesselGuard.SelectedLevel", 1), 1, 3);
+        selectedLevelName = selectedLevel == 1 ? "血管起点" : (selectedLevel == 2 ? "斑块挑战" : "健康冲刺");
     }
 
     void Start()
@@ -33,6 +37,8 @@ public class GameManager : MonoBehaviour
         playerStats = FindAnyObjectByType<PlayerStats>();
         if (playerStats != null) playerStats.OnDeath += HandleDeath;
         levelUpManager = FindAnyObjectByType<LevelUpManager>();
+        EnemySpawner spawner = FindAnyObjectByType<EnemySpawner>();
+        if (spawner != null) spawner.spawnInterval = Mathf.Max(0.8f, 2.4f - (selectedLevel - 1) * 0.45f);
         if (levelUpManager != null) levelUpManager.OnUpgradeApplied += HandleUpgradeApplied;
         if (playerStats != null)
         {

@@ -34,6 +34,7 @@ public class KnowledgeTicker : MonoBehaviour
     public float activeHoldSeconds;
     public float overflowWidth;
     public float renderedWidth;
+    [System.NonSerialized]
     public Queue<KnowledgeNotice> pending = new Queue<KnowledgeNotice>();
 
     [System.Serializable]
@@ -62,9 +63,12 @@ public class KnowledgeTicker : MonoBehaviour
         if (option == null) return;
         SkillCardDefinition card = SkillCodexManager.Instance == null ? option.skillCard
             : SkillCodexManager.Instance.GetCardFor(option);
+        Color accent = card != null ? card.cardColor : new Color(0.16f, 0.65f, 0.85f);
+        if (card != null && accent == Color.white && SkillCodexManager.Instance != null)
+            accent = SkillCodexManager.Instance.ColorFor(card.linkedUpgradeType);
         pending.Enqueue(new KnowledgeNotice("已获得  ·  " + option.displayName,
             card != null && !string.IsNullOrEmpty(card.educationText) ? card.educationText : DefaultEducation(option.type),
-            card != null ? card.cardColor : new Color(0.16f, 0.65f, 0.85f)));
+            accent));
     }
 
     public void ShowMessage(string message)
@@ -154,7 +158,7 @@ public class KnowledgeTicker : MonoBehaviour
         // Migrate the previous ticker view if an existing object was explicitly assigned.
         if (root != null) { root.SetActive(false); Destroy(root); }
         displayFont = Font.CreateDynamicFontFromOSFont(new[] { "Microsoft YaHei", "SimHei", "Arial" }, 24);
-        root = new GameObject("KnowledgeTicker", typeof(RectTransform), typeof(CanvasGroup));
+        root = new GameObject("KnowledgeTicker", typeof(RectTransform), typeof(CanvasGroup), typeof(CanvasRenderer));
         root.transform.SetParent(canvas.transform, false);
         root.transform.SetAsFirstSibling();
         plate = root.GetComponent<RectTransform>();
@@ -168,6 +172,7 @@ public class KnowledgeTicker : MonoBehaviour
         frame.raycastTarget = false;
         RectTransform badge = MakeRect("SkillSeal", plate, new Vector2(70f, 78f), new Vector2(51f, 65f));
         badge.anchorMin = badge.anchorMax = new Vector2(0f, 0f);
+        badge.gameObject.AddComponent<CanvasRenderer>();
         emblem = badge.gameObject.AddComponent<KnowledgePlateGraphic>();
         emblem.medallion = true; emblem.raycastTarget = false;
         Text seal = MakeText("SealLabel", badge, "知", 25, new Color(1f, 0.92f, 0.66f));

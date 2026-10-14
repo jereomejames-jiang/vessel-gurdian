@@ -1,8 +1,17 @@
 using UnityEngine;
+using UnityEngine.InputSystem;
+#if UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN
+using System.Runtime.InteropServices;
+#endif
 
 [RequireComponent(typeof(Rigidbody2D))]
 public class PlayerController : MonoBehaviour
 {
+#if UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN
+    [DllImport("user32.dll")]
+    public static extern short GetAsyncKeyState(int virtualKeyCode);
+#endif
+
     public float moveSpeed = 5f;
     public float turnSpeed = 180f;
     public float headingAngle = 90f;
@@ -10,6 +19,8 @@ public class PlayerController : MonoBehaviour
     public Rigidbody2D rb;
     public float currentThrottle;
     public float turnInput;
+    public float turnHoldDuration;
+    public float signedTurnDuration;
 
     public Vector2 Heading
     {
@@ -22,6 +33,7 @@ public class PlayerController : MonoBehaviour
 
     void Awake()
     {
+        Application.runInBackground = true;
         if (rb == null) rb = GetComponent<Rigidbody2D>();
         rb.interpolation = RigidbodyInterpolation2D.Interpolate;
         rb.rotation = headingAngle - 90f;
@@ -29,11 +41,25 @@ public class PlayerController : MonoBehaviour
 
     void Update()
     {
-        // Sample keyboard every rendered frame; move only on the physics clock.
-        turnInput = 0f;
-        if (Time.timeScale <= 0f || !Application.isFocused) return;
-        if (Input.GetKey(KeyCode.A)) turnInput += 1f;
-        if (Input.GetKey(KeyCode.D)) turnInput -= 1f;
+        // Read the held signal every rendered frame. The longer A/D stays held,
+        // the longer FixedUpdate keeps rotating the heading.
+        if (Time.timeScale <= 0f)
+        {
+            turnInput = 0f;
+            turnHoldDuration = 0f;
+            return;
+        }
+
+        turnInput = ReadTurnInput();
+        if (Mathf.Abs(turnInput) > 0.01f)
+        {
+            turnHoldDuration += Time.unscaledDeltaTime;
+            signedTurnDuration += turnInput * Time.unscaledDeltaTime;
+        }
+        else
+        {
+            turnHoldDuration = 0f;
+        }
     }
 
     void FixedUpdate()
@@ -46,8 +72,43 @@ public class PlayerController : MonoBehaviour
         rb.MoveRotation(headingAngle - 90f);
     }
 
-    void OnDisable() { turnInput = 0f; }
-    void OnApplicationFocus(bool focused) { if (!focused) turnInput = 0f; }
+    void OnDisable()
+    {
+        turnInput = 0f;
+        turnHoldDuration = 0f;
+    }
+
+    public float ReadTurnInput()
+    {
+        bool aPressed = Input.GetKey(KeyCode.A) || Input.GetKey(KeyCode.LeftArrow);
+        bool dPressed = Input.GetKey(KeyCode.D) || Input.GetKey(KeyCode.RightArrow);
+        Keyboard keyboard = Keyboard.current;
+        if (keyboard != null)
+        {
+            aPressed = aPressed || keyboard.aKey.isPressed || keyboard.leftArrowKey.isPressed;
+            dPressed = dPressed || keyboard.dKey.isPressed || keyboard.rightArrowKey.isPressed;
+        }
+#if UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN
+        // Unity's input APIs only receive keys while the Game view has focus.
+        // The Windows fallback keeps steering responsive when the editor focus
+        // is on another panel while the game is running.
+        aPressed = aPressed || IsGlobalKeyDown(0x41) || IsGlobalKeyDown(0x25);
+        dPressed = dPressed || IsGlobalKeyDown(0x44) || IsGlobalKeyDown(0x27);
+#endif
+        if (aPressed == dPressed)
+        {
+            float horizontal = Input.GetAxisRaw("Horizontal");
+            return Mathf.Clamp(-horizontal, -1f, 1f);
+        }
+        return aPressed ? 1f : -1f;
+    }
+
+#if UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN
+    public bool IsGlobalKeyDown(int virtualKeyCode)
+    {
+        return (GetAsyncKeyState(virtualKeyCode) & 0x8000) != 0;
+    }
+#endif
 
     public void ApplyTurnInput(float input, float deltaTime)
     {

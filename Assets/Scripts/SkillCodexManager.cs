@@ -93,10 +93,12 @@ public class SkillCodexManager : MonoBehaviour
     public void TogglePanel() { SetPanel(!panelOpen); }
     public void SetPanel(bool open)
     {
+        if (panelOpen == open) return;
         if (open)
         {
             LevelUpManager levels = FindAnyObjectByType<LevelUpManager>();
             if (isGameplay && ((levels != null && levels.isChoosing) ||
+                (CardRevealUI.Instance != null && CardRevealUI.Instance.isShowing) ||
                 (GameManager.Instance != null && GameManager.Instance.gameEnded))) return;
             EnsureView();
             ownsPause = isGameplay && Time.timeScale > 0f;
@@ -128,8 +130,9 @@ public class SkillCodexManager : MonoBehaviour
             SkillCardDefinition card = cards[i];
             Text text = cardButtons[i].GetComponentInChildren<Text>();
             text.text = card.IsUnlocked ? "已点亮\n" + card.displayName : card.displayName + "\n尚未点亮";
+            Color cardColor = card.cardColor == Color.white ? ColorFor(card.linkedUpgradeType) : card.cardColor;
             cardButtons[i].GetComponent<Image>().color = card.IsUnlocked
-                ? card.cardColor : new Color(0.13f, 0.16f, 0.21f);
+                ? cardColor : new Color(0.13f, 0.16f, 0.21f);
         }
         ShowCardDetail(selectedIndex);
     }
@@ -193,6 +196,7 @@ public class SkillCodexManager : MonoBehaviour
         GameObject obj = new GameObject(name, typeof(RectTransform), typeof(Image), typeof(Button));
         obj.transform.SetParent(parent, false);
         obj.GetComponent<Image>().color = new Color(0.12f, 0.30f, 0.40f);
+        obj.GetComponent<Button>().transition = Selectable.Transition.None;
         RectTransform rect = obj.GetComponent<RectTransform>();
         rect.anchorMin = rect.anchorMax = Vector2.one * 0.5f;
         rect.sizeDelta = size; rect.anchoredPosition = position;

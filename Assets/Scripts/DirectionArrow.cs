@@ -21,6 +21,9 @@ public class DirectionArrow : MonoBehaviour
         }
         // No second smoothing pass: stay exactly beneath the rendered player.
         transform.position = target.position + worldOffset;
-        transform.rotation = target.rotation;
+        // Player Rigidbody2D intentionally freezes physical rotation. Use the
+        // controller heading directly so the direction marker visibly turns.
+        float visualAngle = playerController != null ? playerController.headingAngle - 90f : target.eulerAngles.z;
+        transform.rotation = Quaternion.Euler(0f, 0f, visualAngle);
     }
 }
