@@ -4,8 +4,9 @@ using UnityEngine;
 public class InfiniteBrickBackground : MonoBehaviour
 {
     public Transform target;
-    public int columns = 17;
-    public int rows = 21;
+    // 覆盖初始视野以及升级后的最大缩放范围。
+    public int columns = 25;
+    public int rows = 31;
     public float brickWidth = 2f;
     public float brickHeight = 1f;
     public float pixelsPerUnit = 32f;

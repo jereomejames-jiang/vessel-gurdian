@@ -16,6 +16,9 @@ public class GameManager : MonoBehaviour
     public PlayerSkillCollection playerSkillCollection;
     public int selectedLevel = 1;
     public string selectedLevelName = "血管起点";
+    public bool requireBossDefeat = true;
+    public bool bossDefeated;
+    public string stageSummary;
     public event Action<bool> OnGameEnded;
 
     void Awake()
@@ -30,6 +33,8 @@ public class GameManager : MonoBehaviour
         Time.timeScale = 1f;
         selectedLevel = Mathf.Clamp(PlayerPrefs.GetInt("VesselGuard.SelectedLevel", 1), 1, 3);
         selectedLevelName = selectedLevel == 1 ? "血管起点" : (selectedLevel == 2 ? "斑块挑战" : "健康冲刺");
+        stageSummary = selectedLevel == 1 ? "毛细血管 · 低压与微循环" :
+            (selectedLevel == 2 ? "静脉 · 淤积与凝聚" : "动脉 · 高压与斑块");
     }
 
     void Start()
@@ -38,7 +43,8 @@ public class GameManager : MonoBehaviour
         if (playerStats != null) playerStats.OnDeath += HandleDeath;
         levelUpManager = FindAnyObjectByType<LevelUpManager>();
         EnemySpawner spawner = FindAnyObjectByType<EnemySpawner>();
-        if (spawner != null) spawner.spawnInterval = Mathf.Max(0.8f, 2.4f - (selectedLevel - 1) * 0.45f);
+        if (spawner != null) ApplyStageTheme(spawner);
+        if (spawner != null) spawner.spawnInterval = Mathf.Max(0.65f, 1.15f - (selectedLevel - 1) * 0.15f);
         if (levelUpManager != null) levelUpManager.OnUpgradeApplied += HandleUpgradeApplied;
         if (playerStats != null)
         {
@@ -61,6 +67,7 @@ public class GameManager : MonoBehaviour
         elapsedTime = 0f;
         gameEnded = false;
         victory = false;
+        bossDefeated = false;
         Time.timeScale = 1f;
     }
 
@@ -72,7 +79,13 @@ public class GameManager : MonoBehaviour
     }
 
     public float GetRemaining() { return Mathf.Max(0f, gameDuration - elapsedTime); }
-    public void EndGame() { FinishGame(true); }
+    public void EndGame()
+    {
+        EnemySpawner spawner = FindAnyObjectByType<EnemySpawner>();
+        bool canAdvance = !requireBossDefeat || spawner == null || !spawner.bossSpawned || spawner.bossDefeated;
+        bossDefeated = spawner != null && spawner.bossDefeated;
+        FinishGame(canAdvance);
+    }
     public void HandleDeath() { FinishGame(false); }
 
     public void FinishGame(bool won)
@@ -89,6 +102,29 @@ public class GameManager : MonoBehaviour
     {
         Time.timeScale = 1f;
         SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
+    }
+
+    public void ApplyStageTheme(EnemySpawner spawner)
+    {
+        InfiniteBrickBackground background = FindAnyObjectByType<InfiniteBrickBackground>();
+        if (background == null) return;
+
+        if (selectedLevel == 1)
+        {
+            background.brickColor = new Color(0.16f, 0.075f, 0.12f, 1f);
+            background.mortarColor = new Color(0.035f, 0.018f, 0.035f, 1f);
+        }
+        else if (selectedLevel == 2)
+        {
+            background.brickColor = new Color(0.035f, 0.11f, 0.2f, 1f);
+            background.mortarColor = new Color(0.008f, 0.025f, 0.055f, 1f);
+        }
+        else
+        {
+            background.brickColor = new Color(0.2f, 0.045f, 0.055f, 1f);
+            background.mortarColor = new Color(0.045f, 0.008f, 0.012f, 1f);
+        }
+        background.BuildField();
     }
 
     void OnDestroy()

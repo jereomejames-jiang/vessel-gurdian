@@ -11,6 +11,7 @@ public class CardRevealUI : MonoBehaviour
     public Text cardDescription;
     public Text educationText;
     public Image glowBorder;
+    public RectTransform cardRect;
 
     public float showDuration = 2.8f;
     public float timer;
@@ -23,15 +24,30 @@ public class CardRevealUI : MonoBehaviour
         displayFont = Font.CreateDynamicFontFromOSFont(new[] { "Microsoft YaHei", "SimHei", "Arial" }, 24);
         if (revealPanel != null && displayFont != null)
             foreach (Text label in revealPanel.GetComponentsInChildren<Text>(true)) label.font = displayFont;
+        EnsureCardRect();
         if (revealPanel != null) revealPanel.SetActive(false);
+    }
+
+    public void EnsureCardRect()
+    {
+        if (revealPanel == null) return;
+        if (cardRect == null)
+        {
+            Transform frame = revealPanel.transform.Find("CardFrame");
+            if (frame != null) cardRect = frame as RectTransform;
+        }
+        if (cardRect != null && !isShowing) cardRect.localScale = Vector3.one;
     }
 
     public void Show(SkillCardDefinition card)
     {
         if (card == null || revealPanel == null) return;
 
+        EnsureCardRect();
         revealPanel.SetActive(true);
         revealPanel.transform.SetAsLastSibling();
+        // Keep the dimmer stable; only the card itself should pop in.
+        revealPanel.transform.localScale = Vector3.one;
 
         if (cardTitle != null) cardTitle.text = card.displayName;
         if (cardDescription != null) cardDescription.text = card.description;
@@ -39,8 +55,7 @@ public class CardRevealUI : MonoBehaviour
         if (cardBackground != null) cardBackground.color = new Color(card.cardColor.r, card.cardColor.g, card.cardColor.b, 0.92f);
         if (glowBorder != null) glowBorder.color = new Color(1f, 0.84f, 0f, 1f);
 
-        RectTransform cardRect = revealPanel.GetComponent<RectTransform>();
-        cardRect.localScale = Vector3.zero;
+        if (cardRect != null) cardRect.localScale = Vector3.zero;
 
         isShowing = true;
         timer = 0f;
@@ -52,7 +67,8 @@ public class CardRevealUI : MonoBehaviour
         if (!isShowing || revealPanel == null) return;
 
         timer += Time.unscaledDeltaTime;
-        RectTransform cardRect = revealPanel.GetComponent<RectTransform>();
+        EnsureCardRect();
+        if (cardRect == null) return;
 
         float t = Mathf.Clamp01(timer / 0.45f);
         float eased = 1f - Mathf.Pow(1f - t, 3f);
@@ -79,6 +95,7 @@ public class CardRevealUI : MonoBehaviour
     {
         isShowing = false;
         if (revealPanel != null) revealPanel.SetActive(false);
+        if (cardRect != null) cardRect.localScale = Vector3.one;
 
         LevelUpManager levels = FindAnyObjectByType<LevelUpManager>();
         if ((levels == null || !levels.isChoosing) &&

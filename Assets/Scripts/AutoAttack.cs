@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 public class AutoAttack : MonoBehaviour
@@ -7,8 +8,14 @@ public class AutoAttack : MonoBehaviour
     public float bulletLifetime = 2f;
     public int bulletDamage = 1;
     public GameObject bulletPrefab;
+    public EnemySpawner enemySpawner;
 
     public float attackTimer;
+
+    void Start()
+    {
+        enemySpawner = FindAnyObjectByType<EnemySpawner>();
+    }
 
     void Update()
     {
@@ -25,18 +32,22 @@ public class AutoAttack : MonoBehaviour
     {
         if (bulletPrefab == null) return;
 
-        Enemy[] enemies = FindObjectsByType<Enemy>();
+        if (enemySpawner == null) enemySpawner = FindAnyObjectByType<EnemySpawner>();
+        Enemy[] enemies = enemySpawner == null ? FindObjectsByType<Enemy>() : null;
+        List<Enemy> trackedEnemies = enemySpawner == null ? null : enemySpawner.trackedEnemies;
         Enemy nearest = null;
         float nearestDistance = float.MaxValue;
 
-        for (int i = 0; i < enemies.Length; i++)
+        int enemyCount = trackedEnemies == null ? enemies.Length : trackedEnemies.Count;
+        for (int i = 0; i < enemyCount; i++)
         {
-            if (enemies[i] == null || enemies[i].currentHP <= 0) continue;
-            float distance = (enemies[i].transform.position - transform.position).sqrMagnitude;
+            Enemy candidate = trackedEnemies == null ? enemies[i] : trackedEnemies[i];
+            if (candidate == null || candidate.currentHP <= 0) continue;
+            float distance = (candidate.transform.position - transform.position).sqrMagnitude;
             if (distance < nearestDistance)
             {
                 nearestDistance = distance;
-                nearest = enemies[i];
+                nearest = candidate;
             }
         }
 

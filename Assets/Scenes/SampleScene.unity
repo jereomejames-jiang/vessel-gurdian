@@ -666,6 +666,7 @@ MonoBehaviour:
   cardDescription: {fileID: 23129491}
   educationText: {fileID: 791041073}
   glowBorder: {fileID: 670856109}
+  cardRect: {fileID: 1127726600}
   showDuration: 2.8
   timer: 0
   isShowing: 0
@@ -1157,7 +1158,7 @@ MonoBehaviour:
   target: {fileID: 215052964}
   smoothSpeed: 10
   offset: {x: 0, y: 0, z: -10}
-  orthographicSize: 7
+  orthographicSize: 9.5
   lookAheadDistance: 1.4
   lookAheadSmoothTime: 0.22
   teleportDistance: 15
@@ -1256,7 +1257,7 @@ Camera:
   far clip plane: 1000
   field of view: 60
   orthographic: 1
-  orthographic size: 7
+  orthographic size: 9.5
   m_Depth: 0
   m_CullingMask:
     serializedVersion: 2
@@ -2527,7 +2528,7 @@ RectTransform:
   m_GameObject: {fileID: 1044062234}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 2092658556}
@@ -2611,7 +2612,7 @@ RectTransform:
   m_GameObject: {fileID: 1127726599}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 670856111}
@@ -3194,7 +3195,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::EnemySpawner
   enemyPrefab: {fileID: 6465778984537390812, guid: 9446345f8819ab34a820ec3d5fa89a75, type: 3}
-  spawnInterval: 2
+  spawnInterval: 1.15
   spawnRadius: 12
   player: {fileID: 215052964}
   spawnTimer: 0
@@ -4030,8 +4031,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::InfiniteBrickBackground
   target: {fileID: 215052964}
-  columns: 17
-  rows: 25
+  columns: 25
+  rows: 31
   brickWidth: 2
   brickHeight: 1
   pixelsPerUnit: 32

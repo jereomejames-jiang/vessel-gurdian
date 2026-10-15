@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 
 public class Enemy : MonoBehaviour
@@ -5,7 +6,10 @@ public class Enemy : MonoBehaviour
     public int maxHP = 3;
     public float moveSpeed = 2f;
     public int contactDamage = 1;
+    public int xpValue = 1;
     public GameObject xpOrbPrefab;
+    public bool externalMovement;
+    public event Action<Enemy> OnDied;
 
     public int currentHP;
     public Transform player;
@@ -25,6 +29,7 @@ public class Enemy : MonoBehaviour
 
     void FixedUpdate()
     {
+        if (externalMovement) return;
         if (player == null)
         {
             PlayerController controller = FindAnyObjectByType<PlayerController>();
@@ -51,9 +56,12 @@ public class Enemy : MonoBehaviour
         currentHP -= amount;
         if (currentHP <= 0)
         {
+            OnDied?.Invoke(this);
             if (xpOrbPrefab != null)
             {
-                Instantiate(xpOrbPrefab, transform.position, Quaternion.identity);
+                GameObject orbObject = Instantiate(xpOrbPrefab, transform.position, Quaternion.identity);
+                ExperienceOrb orb = orbObject.GetComponent<ExperienceOrb>();
+                if (orb != null) orb.xpValue = Mathf.Max(1, xpValue);
             }
             Destroy(gameObject);
         }
