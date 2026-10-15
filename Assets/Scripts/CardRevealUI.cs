@@ -102,7 +102,8 @@ public class CardRevealUI : MonoBehaviour
             (SkillCodexManager.Instance == null || !SkillCodexManager.Instance.panelOpen) &&
             (GameManager.Instance == null || !GameManager.Instance.gameEnded))
         {
-            Time.timeScale = 1f;
+            UIManager testUI = FindAnyObjectByType<UIManager>();
+            Time.timeScale = testUI != null && testUI.speedSixX ? testUI.testSpeedMultiplier : 1f;
         }
     }
 

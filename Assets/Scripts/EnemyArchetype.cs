@@ -1,3 +1,4 @@
+using System.Collections;
 using UnityEngine;
 
 public enum EnemyKind
@@ -18,6 +19,12 @@ public class EnemyArchetype : MonoBehaviour
     public SpriteRenderer spriteRenderer;
     public bool configured;
     public bool subscribed;
+    public bool obstacleSpawned;
+    public VesselHazardZone ownedHazard;
+    public float ruptureExplosionRadius = 2f;
+    public int ruptureExplosionDamageMultiplier = 2;
+    public float bleedingGapRadius = 2.8f;
+    public static Collider2D[] nearbyBuffer = new Collider2D[32];
 
     public void Awake()
     {
@@ -36,6 +43,8 @@ public class EnemyArchetype : MonoBehaviour
         stageIndex = Mathf.Clamp(newStage, 1, 3);
         if (enemy == null) enemy = GetComponent<Enemy>();
         if (spriteRenderer == null) spriteRenderer = GetComponent<SpriteRenderer>();
+        enemy.deathDelay = 0f;
+        enemy.knockbackResistance = 0f;
         ApplyStats();
         ApplyVisual();
         if (!subscribed && enemy != null)
@@ -64,6 +73,7 @@ public class EnemyArchetype : MonoBehaviour
                 enemy.moveSpeed = 1.65f + stageIndex * 0.18f;
                 enemy.contactDamage = 2;
                 enemy.xpValue = 3;
+                enemy.knockbackResistance = 0.9f;
                 transform.localScale = Vector3.one * 0.9f;
                 break;
             case EnemyKind.RupturedCell:
@@ -71,6 +81,7 @@ public class EnemyArchetype : MonoBehaviour
                 enemy.moveSpeed = 1.1f + stageIndex * 0.1f;
                 enemy.contactDamage = 2;
                 enemy.xpValue = 5;
+                enemy.deathDelay = 0.45f;
                 transform.localScale = Vector3.one * 1.05f;
                 break;
             case EnemyKind.MicroThrombus:
@@ -100,6 +111,9 @@ public class EnemyArchetype : MonoBehaviour
         float stageXpMultiplier = 1f + (stageIndex - 1) * 0.25f;
         enemy.xpValue = Mathf.Max(1, Mathf.RoundToInt(enemy.xpValue * stageXpMultiplier));
         enemy.currentHP = enemy.maxHP;
+
+        if (kind == EnemyKind.BleedingGap && ownedHazard == null)
+            ownedHazard = VesselHazardZone.Create(transform.position, bleedingGapRadius, 1, 0.55f, gameObject);
     }
 
     public void ApplyVisual()
@@ -123,15 +137,56 @@ public class EnemyArchetype : MonoBehaviour
     public void HandleEnemyDied(Enemy deadEnemy)
     {
         if (kind == EnemyKind.RupturedCell)
+            StartCoroutine(RupturedDeathRoutine());
+    }
+
+    public void OnTriggerEnter2D(Collider2D other)
+    {
+        if (kind != EnemyKind.MicroThrombus || obstacleSpawned) return;
+        PlayerStats stats = other.GetComponent<PlayerStats>();
+        if (stats == null) stats = other.GetComponentInParent<PlayerStats>();
+        if (stats == null) return;
+        obstacleSpawned = true;
+        VesselHazardZone.Create(transform.position, 1.55f, 0, 0.45f, null, 4.5f);
+    }
+
+    public int ModifyIncomingDamage(int amount)
+    {
+        if (kind != EnemyKind.SpikeSoldier || amount <= 0) return amount;
+#pragma warning disable 0618
+        int hitCount = Physics2D.OverlapCircleNonAlloc(transform.position, 1.05f, nearbyBuffer);
+#pragma warning restore 0618
+        int nearbyGuards = 0;
+        for (int i = 0; i < hitCount; i++)
         {
-            EnemySpawner spawner = FindAnyObjectByType<EnemySpawner>();
-            if (spawner != null)
+            EnemyArchetype other = nearbyBuffer[i] == null ? null : nearbyBuffer[i].GetComponent<EnemyArchetype>();
+            if (other != null && other != this && other.kind == EnemyKind.SpikeSoldier &&
+                other.enemy != null && other.enemy.currentHP > 0 && !other.enemy.deathPending)
+                nearbyGuards++;
+        }
+        if (nearbyGuards <= 0) return amount;
+        float multiplier = Mathf.Clamp(1f - nearbyGuards * 0.18f, 0.45f, 1f);
+        return Mathf.Max(1, Mathf.CeilToInt(amount * multiplier));
+    }
+
+    public IEnumerator RupturedDeathRoutine()
+    {
+        yield return new WaitForSecondsRealtime(0.16f);
+        Collider2D[] hits = Physics2D.OverlapCircleAll(transform.position, ruptureExplosionRadius);
+        for (int i = 0; i < hits.Length; i++)
+        {
+            PlayerStats stats = hits[i] == null ? null : hits[i].GetComponent<PlayerStats>();
+            if (stats == null && hits[i] != null) stats = hits[i].GetComponentInParent<PlayerStats>();
+            if (stats != null) stats.TakeDamage(Mathf.Max(1, enemy.contactDamage * ruptureExplosionDamageMultiplier));
+        }
+        yield return new WaitForSecondsRealtime(0.08f);
+        EnemySpawner spawner = FindAnyObjectByType<EnemySpawner>();
+        if (spawner != null)
+        {
+            for (int i = 0; i < 2; i++)
             {
-                for (int i = 0; i < 2; i++)
-                {
-                    Vector2 offset = Random.insideUnitCircle * 0.55f;
-                    spawner.SpawnSpecific(EnemyKind.CellShadow, transform.position + (Vector3)offset);
-                }
+                Vector2 offset = Random.insideUnitCircle * 0.55f;
+                spawner.SpawnSpecific(EnemyKind.CellShadow, transform.position + (Vector3)offset);
             }
         }
     }
@@ -141,3 +196,5 @@ public class EnemyArchetype : MonoBehaviour
         if (subscribed && enemy != null) enemy.OnDied -= HandleEnemyDied;
     }
 }
+
+

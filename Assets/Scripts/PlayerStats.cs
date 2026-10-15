@@ -9,6 +9,7 @@ public class PlayerStats : MonoBehaviour
     public int currentHP;
     public int level = 1;
     public int currentXP;
+    public bool invincible;
 
     public event Action<int, int> OnHPChanged;
     public event Action<int, int, int> OnXPChanged;
@@ -52,7 +53,7 @@ public class PlayerStats : MonoBehaviour
 
     public void TakeDamage(int amount)
     {
-        if (amount <= 0 || currentHP <= 0 || Time.timeScale <= 0f) return;
+        if (invincible || amount <= 0 || currentHP <= 0 || Time.timeScale <= 0f) return;
 
         currentHP = Mathf.Max(0, currentHP - amount);
         OnHPChanged?.Invoke(currentHP, maxHP);

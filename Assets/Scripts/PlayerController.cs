@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
 #if UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN
@@ -21,6 +22,9 @@ public class PlayerController : MonoBehaviour
     public float turnInput;
     public float turnHoldDuration;
     public float signedTurnDuration;
+    public int slowZoneCount;
+    public float slowZoneMultiplier = 1f;
+    public List<float> activeSlowZoneMultipliers = new List<float>();
 
     public Vector2 Heading
     {
@@ -68,7 +72,7 @@ public class PlayerController : MonoBehaviour
         ApplyTurnInput(turnInput, Time.fixedDeltaTime);
         currentThrottle = autoMove ? 1f : 0f;
         // Always advance along the current heading; W/S have no effect.
-        rb.MovePosition(rb.position + Heading * (moveSpeed * currentThrottle * Time.fixedDeltaTime));
+        rb.MovePosition(rb.position + Heading * (moveSpeed * currentThrottle * slowZoneMultiplier * Time.fixedDeltaTime));
         rb.MoveRotation(headingAngle - 90f);
     }
 
@@ -118,5 +122,34 @@ public class PlayerController : MonoBehaviour
     public void SetHeading(float angle)
     {
         headingAngle = Mathf.Repeat(angle + 180f, 360f) - 180f;
+    }
+
+    public void AddSlowZone(float multiplier)
+    {
+        activeSlowZoneMultipliers.Add(Mathf.Clamp(multiplier, 0.1f, 1f));
+        slowZoneCount = activeSlowZoneMultipliers.Count;
+        RecalculateSlowZoneMultiplier();
+    }
+
+    public void RemoveSlowZone(float multiplier)
+    {
+        float value = Mathf.Clamp(multiplier, 0.1f, 1f);
+        for (int i = 0; i < activeSlowZoneMultipliers.Count; i++)
+        {
+            if (Mathf.Abs(activeSlowZoneMultipliers[i] - value) < 0.01f)
+            {
+                activeSlowZoneMultipliers.RemoveAt(i);
+                break;
+            }
+        }
+        slowZoneCount = activeSlowZoneMultipliers.Count;
+        RecalculateSlowZoneMultiplier();
+    }
+
+    public void RecalculateSlowZoneMultiplier()
+    {
+        slowZoneMultiplier = 1f;
+        for (int i = 0; i < activeSlowZoneMultipliers.Count; i++)
+            slowZoneMultiplier = Mathf.Min(slowZoneMultiplier, activeSlowZoneMultipliers[i]);
     }
 }

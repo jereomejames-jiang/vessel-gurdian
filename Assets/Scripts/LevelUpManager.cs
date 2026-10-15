@@ -119,7 +119,11 @@ public class LevelUpManager : MonoBehaviour
         else if (SkillCodexManager.Instance != null) card = SkillCodexManager.Instance.GetCardFor(option);
         if (card != null && CardRevealUI.Instance != null && CardRevealUI.Instance.revealPanel != null)
             CardRevealUI.Instance.Show(card);
-        else if (GameManager.Instance == null || !GameManager.Instance.gameEnded) Time.timeScale = 1f;
+        else if (GameManager.Instance == null || !GameManager.Instance.gameEnded)
+        {
+            UIManager testUI = FindAnyObjectByType<UIManager>();
+            Time.timeScale = testUI != null && testUI.speedSixX ? testUI.testSpeedMultiplier : 1f;
+        }
     }
 }
 

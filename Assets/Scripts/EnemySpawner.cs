@@ -16,6 +16,8 @@ public class EnemySpawner : MonoBehaviour
     public float cleanupInterval = 0.5f;
     public float cleanupTimer;
     public List<Enemy> trackedEnemies = new List<Enemy>();
+    public int spikeClusterSize = 3;
+    public float spikeClusterRadius = 0.7f;
     public bool bossSpawned;
     public bool bossDefeated;
     public EnemyKind lastSpawnedKind;
@@ -75,7 +77,17 @@ public class EnemySpawner : MonoBehaviour
 
     public void SpawnEnemy()
     {
-        SpawnSpecific(ChooseKind(), GetSpawnPosition());
+        EnemyKind kind = ChooseKind();
+        Vector3 position = GetSpawnPosition();
+        SpawnSpecific(kind, position);
+        if (kind != EnemyKind.SpikeSoldier) return;
+
+        // Spawn a compact group so the spike soldiers can protect one another.
+        for (int i = 1; i < spikeClusterSize && trackedEnemies.Count < maxActiveEnemies; i++)
+        {
+            Vector2 offset = Random.insideUnitCircle * spikeClusterRadius;
+            SpawnSpecific(EnemyKind.SpikeSoldier, position + (Vector3)offset);
+        }
     }
 
     public EnemyKind ChooseKind()
@@ -89,10 +101,10 @@ public class EnemySpawner : MonoBehaviour
                 return roll < 0.72f ? EnemyKind.CellShadow : EnemyKind.SpikeSoldier;
             if (stageElapsed < bossTime)
             {
-                if (roll < 0.42f) return EnemyKind.CellShadow;
-                if (roll < 0.66f) return EnemyKind.SpikeSoldier;
-                if (roll < 0.86f) return EnemyKind.RupturedCell;
-                if (roll < 0.95f) return EnemyKind.MicroThrombus;
+                if (roll < 0.32f) return EnemyKind.CellShadow;
+                if (roll < 0.52f) return EnemyKind.SpikeSoldier;
+                if (roll < 0.73f) return EnemyKind.RupturedCell;
+                if (roll < 0.86f) return EnemyKind.MicroThrombus;
                 return EnemyKind.BleedingGap;
             }
         }
@@ -104,10 +116,10 @@ public class EnemySpawner : MonoBehaviour
                 return roll < 0.35f ? EnemyKind.CellShadow : (roll < 0.72f ? EnemyKind.SpikeSoldier : EnemyKind.MicroThrombus);
             if (stageElapsed < bossTime)
             {
-                if (roll < 0.25f) return EnemyKind.CellShadow;
-                if (roll < 0.52f) return EnemyKind.SpikeSoldier;
-                if (roll < 0.8f) return EnemyKind.MicroThrombus;
-                if (roll < 0.94f) return EnemyKind.RupturedCell;
+                if (roll < 0.2f) return EnemyKind.CellShadow;
+                if (roll < 0.45f) return EnemyKind.SpikeSoldier;
+                if (roll < 0.7f) return EnemyKind.MicroThrombus;
+                if (roll < 0.84f) return EnemyKind.RupturedCell;
                 return EnemyKind.BleedingGap;
             }
         }
@@ -119,9 +131,9 @@ public class EnemySpawner : MonoBehaviour
                 return roll < 0.25f ? EnemyKind.CellShadow : (roll < 0.62f ? EnemyKind.RupturedCell : EnemyKind.MicroThrombus);
             if (stageElapsed < bossTime)
             {
-                if (roll < 0.22f) return EnemyKind.SpikeSoldier;
-                if (roll < 0.5f) return EnemyKind.RupturedCell;
-                if (roll < 0.78f) return EnemyKind.MicroThrombus;
+                if (roll < 0.18f) return EnemyKind.SpikeSoldier;
+                if (roll < 0.42f) return EnemyKind.RupturedCell;
+                if (roll < 0.68f) return EnemyKind.MicroThrombus;
                 return EnemyKind.BleedingGap;
             }
         }
@@ -229,3 +241,5 @@ public class EnemySpawner : MonoBehaviour
     }
 }
 // wave definitions imported
+
+

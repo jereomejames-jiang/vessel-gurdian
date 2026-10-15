@@ -27,6 +27,12 @@ public class UIManager : MonoBehaviour
     public string mainMenuSceneName = "MainMenu";
     public bool isPausedByMenu;
     public float previousTimeScale = 1f;
+    public Button speedTestButton;
+    public Button invincibleTestButton;
+    public Text speedTestLabel;
+    public Text invincibleTestLabel;
+    public bool speedSixX;
+    public float testSpeedMultiplier = 6f;
 
     void Awake()
     {
@@ -49,6 +55,7 @@ public class UIManager : MonoBehaviour
         displayFont = Font.CreateDynamicFontFromOSFont(new[] { "Microsoft YaHei", "SimHei", "Arial" }, 24);
         foreach (Text label in canvas.GetComponentsInChildren<Text>(true)) label.font = displayFont;
         EnsurePauseView();
+        EnsureTestTools();
 
         choiceButtons = new Button[3];
         choiceButtons[0] = FindChild<Button>(canvas.transform, "Choice1");
@@ -112,6 +119,9 @@ public class UIManager : MonoBehaviour
 
         if (Input.GetKeyDown(KeyCode.Escape) && !isPausedByMenu)
             TogglePauseMenu();
+        if (Input.GetKeyDown(KeyCode.F6)) ToggleSixXSpeed();
+        if (Input.GetKeyDown(KeyCode.F7)) ToggleInvincibility();
+        UpdateTestLabels();
     }
 
     void OnDisable()
@@ -171,6 +181,7 @@ public class UIManager : MonoBehaviour
 
         LevelUpPanel.SetActive(true);
         if (pauseButton != null) pauseButton.gameObject.SetActive(false);
+        SetTestToolsVisible(false);
         if (SkillCodexManager.Instance != null)
         {
             SkillCodexManager.Instance.SetPanel(false);
@@ -204,6 +215,7 @@ public class UIManager : MonoBehaviour
         if (LevelUpPanel != null) LevelUpPanel.SetActive(false);
         if (!isPausedByMenu && pauseButton != null && (gameManager == null || !gameManager.gameEnded))
             pauseButton.gameObject.SetActive(true);
+        if (!isPausedByMenu && (gameManager == null || !gameManager.gameEnded)) SetTestToolsVisible(true);
         if (SkillCodexManager.Instance != null && SkillCodexManager.Instance.codexButton != null)
             SkillCodexManager.Instance.codexButton.gameObject.SetActive(true);
     }
@@ -214,6 +226,7 @@ public class UIManager : MonoBehaviour
         if (PausePanel != null) PausePanel.SetActive(false);
         HideChoices();
         if (pauseButton != null) pauseButton.gameObject.SetActive(false);
+        SetTestToolsVisible(false);
         if (ResultText != null) ResultText.text = won ? "守卫成功！\n你坚持了五分钟" : "守卫结束\n再试一次吧";
         if (GameOverPanel != null) GameOverPanel.SetActive(true);
     }
@@ -310,6 +323,67 @@ public class UIManager : MonoBehaviour
         isPausedByMenu = false;
         Time.timeScale = 1f;
         SceneManager.LoadScene(mainMenuSceneName);
+    }
+
+    public void EnsureTestTools()
+    {
+        if (canvas == null) return;
+        speedTestButton = FindChild<Button>(canvas.transform, "SpeedTestButton");
+        invincibleTestButton = FindChild<Button>(canvas.transform, "InvincibleTestButton");
+
+        if (speedTestButton == null)
+        {
+            speedTestButton = CreateButton(canvas.transform, "SpeedTestButton", "加速 ×6",
+                new Vector2(-220f, -38f), new Vector2(126f, 52f),
+                new Color(0.16f, 0.3f, 0.2f, 0.95f), new Vector2(1f, 1f));
+        }
+        if (invincibleTestButton == null)
+        {
+            invincibleTestButton = CreateButton(canvas.transform, "InvincibleTestButton", "无敌：关",
+                new Vector2(-365f, -38f), new Vector2(126f, 52f),
+                new Color(0.3f, 0.18f, 0.08f, 0.95f), new Vector2(1f, 1f));
+        }
+
+        speedTestLabel = speedTestButton.GetComponentInChildren<Text>(true);
+        invincibleTestLabel = invincibleTestButton.GetComponentInChildren<Text>(true);
+        speedTestButton.onClick.RemoveListener(ToggleSixXSpeed);
+        speedTestButton.onClick.AddListener(ToggleSixXSpeed);
+        invincibleTestButton.onClick.RemoveListener(ToggleInvincibility);
+        invincibleTestButton.onClick.AddListener(ToggleInvincibility);
+        UpdateTestLabels();
+    }
+
+    public void SetTestToolsVisible(bool visible)
+    {
+        if (speedTestButton != null) speedTestButton.gameObject.SetActive(visible);
+        if (invincibleTestButton != null) invincibleTestButton.gameObject.SetActive(visible);
+    }
+
+    public void UpdateTestLabels()
+    {
+        if (speedTestLabel != null) speedTestLabel.text = speedSixX ? "速度：×6" : "加速 ×6";
+        if (invincibleTestLabel != null)
+        {
+            bool enabled = playerStats != null && playerStats.invincible;
+            invincibleTestLabel.text = enabled ? "无敌：开" : "无敌：关";
+        }
+    }
+
+    public void ToggleSixXSpeed()
+    {
+        if (gameManager != null && gameManager.gameEnded) return;
+        if (levelUpManager != null && levelUpManager.isChoosing) return;
+        speedSixX = !speedSixX;
+        Time.timeScale = speedSixX ? testSpeedMultiplier : 1f;
+        UpdateTestLabels();
+    }
+
+    public void ToggleInvincibility()
+    {
+        if (playerStats == null) playerStats = FindAnyObjectByType<PlayerStats>();
+        if (playerStats == null) return;
+        playerStats.invincible = !playerStats.invincible;
+        UpdateTestLabels();
     }
 
     public Button CreateButton(Transform parent, string objectName, string caption, Vector2 position,
