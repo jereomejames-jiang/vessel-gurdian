@@ -9,12 +9,16 @@ public class AutoAttack : MonoBehaviour
     public int bulletDamage = 1;
     public GameObject bulletPrefab;
     public EnemySpawner enemySpawner;
+    public CharacterCombat characterCombat;
 
     public float attackTimer;
 
     void Start()
     {
         enemySpawner = FindAnyObjectByType<EnemySpawner>();
+        characterCombat = GetComponent<CharacterCombat>();
+        if (characterCombat == null) characterCombat = gameObject.AddComponent<CharacterCombat>();
+        characterCombat.Initialize(CharacterCatalog.SelectedRole);
     }
 
     void Update()
@@ -23,13 +27,18 @@ public class AutoAttack : MonoBehaviour
         attackTimer -= Time.deltaTime;
         if (attackTimer <= 0f)
         {
-            attackTimer = attackInterval;
+            attackTimer = attackInterval * (characterCombat == null ? 1f : characterCombat.IntervalMultiplier());
             FireAtNearestEnemy();
         }
     }
 
     public void FireAtNearestEnemy()
     {
+        if (characterCombat != null && characterCombat.enabled)
+        {
+            characterCombat.Attack();
+            return;
+        }
         if (bulletPrefab == null) return;
 
         if (enemySpawner == null) enemySpawner = FindAnyObjectByType<EnemySpawner>();
@@ -62,6 +71,20 @@ public class AutoAttack : MonoBehaviour
         if (bullet != null) bullet.damage = bulletDamage;
 
         Destroy(bulletObject, bulletLifetime);
+    }
+
+    public void SpawnBullet(Vector2 direction, int maxTargets, Vector3 scale)
+    {
+        if (bulletPrefab == null) return;
+        Quaternion rotation = Quaternion.Euler(0f, 0f, Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg - 90f);
+        GameObject projectile = Instantiate(bulletPrefab, transform.position, rotation);
+        projectile.name = "NurseNeedle";
+        projectile.transform.localScale = scale;
+        Rigidbody2D body = projectile.GetComponent<Rigidbody2D>();
+        if (body != null) body.linearVelocity = direction * bulletSpeed;
+        Bullet bullet = projectile.GetComponent<Bullet>();
+        if (bullet != null) { bullet.damage = bulletDamage; bullet.maxTargets = maxTargets; }
+        Destroy(projectile, bulletLifetime);
     }
 
     public void IncreaseDamage(int amount)

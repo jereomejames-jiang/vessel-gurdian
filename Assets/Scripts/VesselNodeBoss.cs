@@ -88,7 +88,8 @@ public class VesselNodeBoss : MonoBehaviour
             else
             {
                 chargeRemaining -= Time.deltaTime;
-                transform.position += (Vector3)(chargeDirection * chargeSpeed * Time.deltaTime);
+                float slow = enemy.moveSpeed <= 0f ? 1f : enemy.EffectiveMoveSpeed / enemy.moveSpeed;
+                transform.position += (Vector3)(chargeDirection * chargeSpeed * slow * Time.deltaTime);
                 if (chargeRemaining <= 0f)
                 {
                     charging = false;
@@ -104,7 +105,7 @@ public class VesselNodeBoss : MonoBehaviour
             enemy.currentHP <= 0 || Time.timeScale <= 0f) return;
 
         Vector2 direction = (player.position - transform.position).normalized;
-        transform.position += (Vector3)(direction * enemy.moveSpeed * Time.fixedDeltaTime);
+        transform.position += (Vector3)(direction * enemy.EffectiveMoveSpeed * Time.fixedDeltaTime);
     }
 
     public void BeginCharge()

@@ -20,6 +20,12 @@ public class MainMenuUI : MonoBehaviour
     public Text levelSelectDescription;
     public Button levelBackButton;
     public int selectedLevel = 1;
+    public Button characterSelectButton;
+    public GameObject characterSelectPanel;
+    public Button[] characterButtons;
+    public Text characterSelectDescription;
+    public Button characterBackButton;
+    public int selectedCharacter;
     public bool isLoadingGame;
     public int fallbackClickFrame = -1;
 
@@ -34,6 +40,7 @@ public class MainMenuUI : MonoBehaviour
         if (quitButton == null) quitButton = FindButton("QuitButton");
         if (statusText == null) statusText = FindText("StatusText");
         selectedLevel = Mathf.Clamp(PlayerPrefs.GetInt("VesselGuard.SelectedLevel", 1), 1, 3);
+        selectedCharacter = Mathf.Clamp(PlayerPrefs.GetInt(CharacterCatalog.PreferenceKey, 0), 0, 2);
 
         displayFont = Font.CreateDynamicFontFromOSFont(new[] { "Microsoft YaHei", "SimHei", "Arial" }, 24);
         if (displayFont != null)
@@ -41,6 +48,7 @@ public class MainMenuUI : MonoBehaviour
             foreach (Text label in GetComponentsInChildren<Text>(true)) label.font = displayFont;
         }
         EnsureLevelSelectView();
+        EnsureCharacterSelectView();
         Text codexLabel = codexButton == null ? null : codexButton.GetComponentInChildren<Text>();
         if (codexLabel != null) codexLabel.text = "血管图鉴";
 
@@ -127,6 +135,8 @@ public class MainMenuUI : MonoBehaviour
     {
         if (levelSelectPanel != null && levelSelectPanel.activeSelf && Input.GetKeyDown(KeyCode.Escape))
             CloseLevelSelect();
+        if (characterSelectPanel != null && characterSelectPanel.activeSelf && Input.GetKeyDown(KeyCode.Escape))
+            CloseCharacterSelect();
     }
 
     public void StartGame()
@@ -134,6 +144,7 @@ public class MainMenuUI : MonoBehaviour
         if (isLoadingGame) return;
         isLoadingGame = true;
         PlayerPrefs.SetInt("VesselGuard.SelectedLevel", selectedLevel);
+        PlayerPrefs.SetInt(CharacterCatalog.PreferenceKey, selectedCharacter);
         PlayerPrefs.Save();
         if (levelSelectPanel != null) levelSelectPanel.SetActive(false);
         if (!string.IsNullOrEmpty(gameSceneName)) SceneManager.LoadScene(gameSceneName);
@@ -159,6 +170,114 @@ public class MainMenuUI : MonoBehaviour
         PlayerPrefs.SetInt("VesselGuard.SelectedLevel", selectedLevel);
         PlayerPrefs.Save();
         RefreshLevelChoices();
+    }
+
+    public void OpenCharacterSelect()
+    {
+        if (characterSelectPanel == null) EnsureCharacterSelectView();
+        if (characterSelectPanel == null) return;
+        characterSelectPanel.SetActive(true);
+        characterSelectPanel.transform.SetAsLastSibling();
+        RefreshCharacterChoices();
+    }
+
+    public void CloseCharacterSelect()
+    {
+        if (characterSelectPanel != null) characterSelectPanel.SetActive(false);
+    }
+
+    public void SelectCharacter(int character)
+    {
+        selectedCharacter = Mathf.Clamp(character, 0, 2);
+        PlayerPrefs.SetInt(CharacterCatalog.PreferenceKey, selectedCharacter);
+        PlayerPrefs.Save();
+        RefreshCharacterChoices();
+    }
+
+    public void EnsureCharacterSelectView()
+    {
+        Canvas canvas = FindAnyObjectByType<Canvas>();
+        if (canvas == null) return;
+        if (characterSelectButton == null)
+        {
+            characterSelectButton = MakeButton(canvas.transform, "CharacterSelectButton", "选择角色",
+                new Vector2(0f, -215f), new Vector2(250f, 56f), new Color(0.24f, 0.32f, 0.46f, 1f));
+            characterSelectButton.onClick.AddListener(OpenCharacterSelect);
+        }
+        if (characterSelectPanel != null)
+        {
+            RefreshCharacterChoices();
+            return;
+        }
+
+        characterSelectPanel = new GameObject("CharacterSelectPanel", typeof(RectTransform), typeof(Image));
+        characterSelectPanel.transform.SetParent(canvas.transform, false);
+        RectTransform panel = characterSelectPanel.GetComponent<RectTransform>();
+        panel.anchorMin = Vector2.zero;
+        panel.anchorMax = Vector2.one;
+        panel.offsetMin = Vector2.zero;
+        panel.offsetMax = Vector2.zero;
+        characterSelectPanel.GetComponent<Image>().color = new Color(0.008f, 0.018f, 0.04f, 0.98f);
+
+        GameObject content = new GameObject("CharacterSelectContent", typeof(RectTransform), typeof(Image));
+        content.transform.SetParent(characterSelectPanel.transform, false);
+        RectTransform contentRect = content.GetComponent<RectTransform>();
+        contentRect.anchorMin = contentRect.anchorMax = Vector2.one * 0.5f;
+        contentRect.sizeDelta = new Vector2(1180f, 700f);
+        content.GetComponent<Image>().color = new Color(0.025f, 0.075f, 0.12f, 0.98f);
+
+        Text title = MakeText(content.transform, "CharacterSelectTitle", "选择角色", 36, TextAnchor.MiddleCenter,
+            new Vector2(0f, 282f), new Vector2(800f, 60f));
+        title.color = new Color(0.7f, 0.94f, 1f, 1f);
+        characterSelectDescription = MakeText(content.transform, "CharacterSelectDescription", "", 17, TextAnchor.UpperLeft,
+            new Vector2(0f, -185f), new Vector2(1060f, 210f));
+        characterSelectDescription.color = new Color(0.78f, 0.86f, 0.94f, 1f);
+
+        characterButtons = new Button[3];
+        for (int i = 0; i < 3; i++)
+        {
+            int character = i;
+            characterButtons[i] = MakeButton(content.transform, "Character" + i + "Button",
+                CharacterCatalog.Names[i],
+                new Vector2(-390f + i * 390f, 58f), new Vector2(340f, 230f),
+                new Color(CharacterCatalog.Colors[i].r * 0.45f, CharacterCatalog.Colors[i].g * 0.45f,
+                    CharacterCatalog.Colors[i].b * 0.45f, 1f));
+            characterButtons[i].onClick.AddListener(() => SelectCharacter(character));
+        }
+        characterBackButton = MakeButton(content.transform, "CharacterBackButton", "返回主界面",
+            new Vector2(0f, -275f), new Vector2(250f, 58f), new Color(0.28f, 0.12f, 0.18f, 1f));
+        characterBackButton.onClick.AddListener(CloseCharacterSelect);
+        characterSelectPanel.SetActive(false);
+        RefreshCharacterChoices();
+    }
+
+    public void RefreshCharacterChoices()
+    {
+        if (characterButtons == null) return;
+        if (characterSelectDescription != null)
+            characterSelectDescription.text = BuildCharacterRouteSummary((CharacterRole)selectedCharacter);
+        for (int i = 0; i < characterButtons.Length; i++)
+        {
+            if (characterButtons[i] == null) continue;
+            Image image = characterButtons[i].GetComponent<Image>();
+            bool chosen = i == selectedCharacter;
+            Color baseColor = CharacterCatalog.Colors[i];
+            if (image != null) image.color = chosen
+                ? new Color(baseColor.r * 0.75f, baseColor.g * 0.75f, baseColor.b * 0.75f, 1f)
+                : new Color(baseColor.r * 0.35f, baseColor.g * 0.35f, baseColor.b * 0.35f, 1f);
+        }
+    }
+
+    public string BuildCharacterRouteSummary(CharacterRole role)
+    {
+        string summary = CharacterCatalog.Names[(int)role] + "技能路线（每升 3 级进化）\n";
+        for (int rank = 0; rank <= CharacterCatalog.MaxRank; rank++)
+        {
+            int level = rank == 0 ? 1 : rank * 3;
+            summary += "Lv." + level + "：" + CharacterCatalog.Route(role, rank);
+            if (rank < CharacterCatalog.MaxRank) summary += "\n";
+        }
+        return summary;
     }
 
     public void OpenSettingsPlaceholder()

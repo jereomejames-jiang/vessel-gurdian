@@ -12,7 +12,7 @@ public class VesselHazardZone : MonoBehaviour
     public CircleCollider2D trigger;
     public SpriteRenderer spriteRenderer;
     public float damageTimer;
-    public HashSet<PlayerController> affectedPlayers = new HashSet<PlayerController>();
+    [System.NonSerialized] public HashSet<PlayerController> affectedPlayers = new HashSet<PlayerController>();
     public static Sprite hazardSprite;
 
     public static VesselHazardZone Create(Vector3 position, float radius, int damageValue,

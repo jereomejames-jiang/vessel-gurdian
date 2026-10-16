@@ -33,6 +33,7 @@ public class UIManager : MonoBehaviour
     public Text invincibleTestLabel;
     public bool speedSixX;
     public float testSpeedMultiplier = 6f;
+    public CharacterCombat characterCombat;
 
     void Awake()
     {
@@ -98,6 +99,7 @@ public class UIManager : MonoBehaviour
     {
         if (playerStats == null) playerStats = FindAnyObjectByType<PlayerStats>();
         if (levelUpManager == null) levelUpManager = FindAnyObjectByType<LevelUpManager>();
+        if (characterCombat == null) characterCombat = FindAnyObjectByType<CharacterCombat>();
         if (playerStats != null)
         {
             UpdateHP(playerStats.currentHP, playerStats.maxHP);
@@ -107,9 +109,12 @@ public class UIManager : MonoBehaviour
 
     void Update()
     {
+        if (characterCombat == null) characterCombat = FindAnyObjectByType<CharacterCombat>();
         if (LevelText != null && playerStats != null)
         {
             LevelText.text = "Lv." + playerStats.level;
+            if (characterCombat != null)
+                LevelText.text += "  " + CharacterCatalog.Name(characterCombat.role) + "·" + characterCombat.rank;
         }
 
         if (TimerText != null && GameManager.Instance != null)

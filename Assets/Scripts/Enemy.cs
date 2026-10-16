@@ -13,6 +13,9 @@ public class Enemy : MonoBehaviour
     public float knockbackResistance;
     public float deathDelay;
     public bool deathPending;
+    public float slowMultiplier = 1f;
+    public float slowUntil;
+    public float EffectiveMoveSpeed => moveSpeed * (Time.time < slowUntil ? slowMultiplier : 1f);
     public event Action<Enemy> OnDied;
 
     public int currentHP;
@@ -33,7 +36,7 @@ public class Enemy : MonoBehaviour
 
     void FixedUpdate()
     {
-        if (externalMovement) return;
+        if (externalMovement || deathPending || currentHP <= 0) return;
         if (player == null)
         {
             PlayerController controller = FindAnyObjectByType<PlayerController>();
@@ -43,7 +46,7 @@ public class Enemy : MonoBehaviour
         if (player == null) return;
 
         Vector3 direction = (player.position - transform.position).normalized;
-        if (rb != null) rb.MovePosition(rb.position + (Vector2)direction * moveSpeed * Time.fixedDeltaTime);
+        if (rb != null) rb.MovePosition(rb.position + (Vector2)direction * EffectiveMoveSpeed * Time.fixedDeltaTime);
     }
 
     void OnTriggerEnter2D(Collider2D other)
@@ -113,5 +116,13 @@ public class Enemy : MonoBehaviour
             rb.AddForce(normalized * effectiveForce, ForceMode2D.Impulse);
         else
             transform.position += (Vector3)(normalized * effectiveForce);
+    }
+
+    public void ApplySlow(float multiplier, float duration)
+    {
+        if (currentHP <= 0 || duration <= 0f) return;
+        multiplier = Mathf.Clamp(multiplier, 0.05f, 1f);
+        slowMultiplier = Time.time >= slowUntil ? multiplier : Mathf.Min(slowMultiplier, multiplier);
+        slowUntil = Mathf.Max(slowUntil, Time.time + duration);
     }
 }
