@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -19,12 +20,16 @@ public class GameManager : MonoBehaviour
     public bool requireBossDefeat = true;
     public bool bossDefeated;
     public string stageSummary;
+    public int enemiesDefeated;
+    public int experienceCollected;
+    public event Action OnRunStatsChanged;
     public event Action<bool> OnGameEnded;
 
     void Awake()
     {
         if (Instance != null && Instance != this) { Destroy(gameObject); return; }
         Instance = this;
+        Screen.SetResolution(1920, 1080, FullScreenMode.MaximizedWindow);
         if (skillCodexManager == null) skillCodexManager = GetComponent<SkillCodexManager>();
         if (skillCodexManager == null) skillCodexManager = gameObject.AddComponent<SkillCodexManager>();
         skillCodexManager.isGameplay = true;
@@ -68,17 +73,46 @@ public class GameManager : MonoBehaviour
         gameEnded = false;
         victory = false;
         bossDefeated = false;
+        enemiesDefeated = 0;
+        experienceCollected = 0;
         Time.timeScale = 1f;
+    }
+
+    public int CurrentWave => Mathf.Clamp(Mathf.FloorToInt(elapsedTime / 30f) + 1, 1, Mathf.Max(1, Mathf.CeilToInt(gameDuration / 30f)));
+    public string GetWaveLabel() { return "波次 " + CurrentWave.ToString("00"); }
+    public void RegisterEnemyDefeated(Enemy enemy)
+    {
+        enemiesDefeated++;
+        OnRunStatsChanged?.Invoke();
+    }
+    public void RegisterExperienceCollected(int amount)
+    {
+        experienceCollected += Mathf.Max(0, amount);
+        OnRunStatsChanged?.Invoke();
     }
 
     public void HandleUpgradeApplied(UpgradeOption option)
     {
         if (skillCodexManager != null) skillCodexManager.UnlockForUpgrade(option);
         if (knowledgeTicker != null) knowledgeTicker.ShowForUpgrade(option);
-        if (playerSkillCollection != null) playerSkillCollection.RecordSelection(option);
     }
 
     public float GetRemaining() { return Mathf.Max(0f, gameDuration - elapsedTime); }
+
+    public void HandleBossDefeated()
+    {
+        if (gameEnded || !requireBossDefeat) return;
+        bossDefeated = true;
+        StartCoroutine(BossVictoryRoutine());
+    }
+
+    public IEnumerator BossVictoryRoutine()
+    {
+        // Brief realtime pause so the boss death reads before the result panel.
+        yield return new WaitForSecondsRealtime(1.5f);
+        if (!gameEnded) FinishGame(true);
+    }
+
     public void EndGame()
     {
         EnemySpawner spawner = FindAnyObjectByType<EnemySpawner>();
@@ -93,7 +127,6 @@ public class GameManager : MonoBehaviour
         if (gameEnded) return;
         gameEnded = true;
         victory = won;
-        if (won) elapsedTime = gameDuration;
         Time.timeScale = 0f;
         OnGameEnded?.Invoke(won);
     }

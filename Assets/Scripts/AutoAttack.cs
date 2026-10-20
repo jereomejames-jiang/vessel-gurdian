@@ -68,7 +68,7 @@ public class AutoAttack : MonoBehaviour
         if (bulletBody != null) bulletBody.linearVelocity = direction * bulletSpeed;
 
         Bullet bullet = bulletObject.GetComponent<Bullet>();
-        if (bullet != null) bullet.damage = bulletDamage;
+        if (bullet != null) { bullet.damage = bulletDamage; bullet.source = characterCombat; }
 
         Destroy(bulletObject, bulletLifetime);
     }
@@ -83,7 +83,7 @@ public class AutoAttack : MonoBehaviour
         Rigidbody2D body = projectile.GetComponent<Rigidbody2D>();
         if (body != null) body.linearVelocity = direction * bulletSpeed;
         Bullet bullet = projectile.GetComponent<Bullet>();
-        if (bullet != null) { bullet.damage = bulletDamage; bullet.maxTargets = maxTargets; }
+        if (bullet != null) { bullet.damage = bulletDamage; bullet.maxTargets = maxTargets; bullet.source = characterCombat; }
         Destroy(projectile, bulletLifetime);
     }
 

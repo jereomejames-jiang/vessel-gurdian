@@ -8,9 +8,9 @@ public class CameraFollow : MonoBehaviour
     public float smoothSpeed = 10f;
     public Vector3 offset = new Vector3(0f, 0f, -10f);
     // 初始视野覆盖更大的战斗区域，参考割草游戏的宽阔战场。
-    public float orthographicSize = 9.5f;
-    public float levelViewStep = 0.45f;
-    public float maxOrthographicSize = 13f;
+    public float orthographicSize = 7.2f;
+    public float levelViewStep = 0.2f;
+    public float maxOrthographicSize = 9.5f;
     public float zoomSmoothTime = 0.18f;
     public float lookAheadDistance = 1.4f;
     public float lookAheadSmoothTime = 0.22f;

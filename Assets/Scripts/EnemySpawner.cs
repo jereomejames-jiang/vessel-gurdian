@@ -5,14 +5,14 @@ public class EnemySpawner : MonoBehaviour
 {
     public GameObject enemyPrefab;
     public GameObject bossPrefab;
-    public float spawnInterval = 1.15f;
+    public float spawnInterval = 1.0f;
     public float spawnRadius = 12f;
     public Transform player;
     public float spawnTimer;
     public float stageElapsed;
     public float bossTime = 255f;
     public int stageIndex = 1;
-    public int maxActiveEnemies = 72;
+    public int maxActiveEnemies = 74;
     public float cleanupInterval = 0.5f;
     public float cleanupTimer;
     public List<Enemy> trackedEnemies = new List<Enemy>();
@@ -21,6 +21,10 @@ public class EnemySpawner : MonoBehaviour
     public bool bossSpawned;
     public bool bossDefeated;
     public EnemyKind lastSpawnedKind;
+    public float surgeInterval = 25f;
+    public float surgeTimer = 20f;
+    public int packSizeMin = 2;
+    public int packSizeMax = 4;
 
     public void Start()
     {
@@ -35,7 +39,7 @@ public class EnemySpawner : MonoBehaviour
 
         // Keep the live object count bounded. Difficulty comes from cadence and stats.
         // More bodies create the mowing-game rhythm while the registry keeps searches cheap.
-        maxActiveEnemies = 72 + stageIndex * 16;
+        maxActiveEnemies = 74 + stageIndex * 16;
         cleanupTimer = cleanupInterval;
         spawnTimer = 0.6f;
     }
@@ -57,6 +61,13 @@ public class EnemySpawner : MonoBehaviour
             CleanupTrackedEnemies();
         }
 
+        surgeTimer -= Time.deltaTime;
+        if (surgeTimer <= 0f)
+        {
+            surgeTimer = surgeInterval;
+            SpawnSurgeWave();
+        }
+
         if (trackedEnemies.Count >= maxActiveEnemies)
             return;
 
@@ -71,22 +82,35 @@ public class EnemySpawner : MonoBehaviour
     public float GetSpawnInterval()
     {
         float levelPressure = (stageIndex - 1) * 0.18f;
-        float timelinePressure = Mathf.Clamp01(stageElapsed / 300f) * 0.55f;
-        return Mathf.Max(0.55f, spawnInterval - levelPressure - timelinePressure);
+        float timelinePressure = Mathf.Clamp01(stageElapsed / 300f) * 0.6f;
+        return Mathf.Max(0.4f, spawnInterval - levelPressure - timelinePressure);
     }
 
     public void SpawnEnemy()
     {
         EnemyKind kind = ChooseKind();
         Vector3 position = GetSpawnPosition();
-        SpawnSpecific(kind, position);
-        if (kind != EnemyKind.SpikeSoldier) return;
-
-        // Spawn a compact group so the spike soldiers can protect one another.
-        for (int i = 1; i < spikeClusterSize && trackedEnemies.Count < maxActiveEnemies; i++)
+        // Spawn in small packs so the field feels alive instead of a sparse trickle.
+        int packSize = kind == EnemyKind.SpikeSoldier ? spikeClusterSize : Random.Range(packSizeMin, packSizeMax + 1);
+        for (int i = 0; i < packSize && trackedEnemies.Count < maxActiveEnemies; i++)
         {
-            Vector2 offset = Random.insideUnitCircle * spikeClusterRadius;
-            SpawnSpecific(EnemyKind.SpikeSoldier, position + (Vector3)offset);
+            Vector2 offset = i == 0 ? Vector2.zero : Random.insideUnitCircle * 1.2f;
+            SpawnSpecific(kind, position + (Vector3)offset);
+        }
+    }
+
+    public void SpawnSurgeWave()
+    {
+        if (player == null) return;
+        // A directional flood from one side — the classic survivor-genre pressure spike.
+        int count = Random.Range(8, 15 + stageIndex * 2);
+        float baseAngle = Random.Range(0f, Mathf.PI * 2f);
+        for (int i = 0; i < count && trackedEnemies.Count < maxActiveEnemies; i++)
+        {
+            float angle = baseAngle + Random.Range(-0.55f, 0.55f);
+            float radius = spawnRadius + Random.Range(0f, 3.5f);
+            Vector3 position = player.position + new Vector3(Mathf.Cos(angle), Mathf.Sin(angle), 0f) * radius;
+            SpawnSpecific(ChooseKind(), position);
         }
     }
 
@@ -96,9 +120,9 @@ public class EnemySpawner : MonoBehaviour
 
         if (stageIndex == 1)
         {
-            if (stageElapsed < 90f) return EnemyKind.CellShadow;
-            if (stageElapsed < 180f)
-                return roll < 0.72f ? EnemyKind.CellShadow : EnemyKind.SpikeSoldier;
+            if (stageElapsed < 60f) return EnemyKind.CellShadow;
+            if (stageElapsed < 150f)
+                return roll < 0.7f ? EnemyKind.CellShadow : EnemyKind.SpikeSoldier;
             if (stageElapsed < bossTime)
             {
                 if (roll < 0.32f) return EnemyKind.CellShadow;
@@ -165,6 +189,7 @@ public class EnemySpawner : MonoBehaviour
         EnemyArchetype archetype = spawned.GetComponent<EnemyArchetype>();
         if (archetype == null) archetype = spawned.AddComponent<EnemyArchetype>();
         archetype.Configure(kind, stageIndex);
+        MonsterSurvivorArtLibrary.ApplyEnemy(spawned, kind);
         ApplyPressureDifficulty(enemy);
         if (!trackedEnemies.Contains(enemy))
         {
@@ -229,6 +254,7 @@ public class EnemySpawner : MonoBehaviour
     public void NotifyBossDefeated()
     {
         bossDefeated = true;
+        if (GameManager.Instance != null) GameManager.Instance.HandleBossDefeated();
     }
 
     public void OnDestroy()

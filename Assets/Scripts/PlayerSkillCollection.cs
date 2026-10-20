@@ -36,4 +36,10 @@ public class PlayerSkillCollection : MonoBehaviour
         Initialize(new[] { option });
         GetSkill(option).RecordSelection();
     }
+
+    public int GetLevel(UpgradeType type)
+    {
+        SkillInstance instance = skills.Find(skill => skill != null && skill.definition != null && skill.definition.type == type);
+        return instance == null ? 0 : instance.selectedCount;
+    }
 }

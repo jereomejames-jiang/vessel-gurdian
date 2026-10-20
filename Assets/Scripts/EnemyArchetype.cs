@@ -89,7 +89,7 @@ public class EnemyArchetype : MonoBehaviour
                 enemy.moveSpeed = 0.65f + stageIndex * 0.08f;
                 enemy.contactDamage = 2;
                 enemy.xpValue = 6;
-                transform.localScale = Vector3.one * 1.35f;
+                transform.localScale = new Vector3(2.3f, 0.9f, 1f);
                 break;
             case EnemyKind.BleedingGap:
                 enemy.maxHP = 12 + stageIndex * 3;
@@ -131,6 +131,7 @@ public class EnemyArchetype : MonoBehaviour
             case EnemyKind.NodeBoss: tint = new Color(0.28f, 0.06f, 0.34f, 1f); break;
         }
         spriteRenderer.color = tint;
+        if (enemy != null) enemy.visualColor = tint;
         spriteRenderer.sortingOrder = kind == EnemyKind.NodeBoss ? 4 : 2;
     }
 

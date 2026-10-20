@@ -171,7 +171,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ExperienceOrb
   xpValue: 1
-  magnetRange: 3
+  magnetRange: 3.5
   magnetSpeed: 8
   player: {fileID: 0}
   playerStats: {fileID: 0}

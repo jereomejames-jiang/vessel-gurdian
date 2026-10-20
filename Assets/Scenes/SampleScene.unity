@@ -1158,7 +1158,7 @@ MonoBehaviour:
   target: {fileID: 215052964}
   smoothSpeed: 10
   offset: {x: 0, y: 0, z: -10}
-  orthographicSize: 9.5
+  orthographicSize: 7.2
   lookAheadDistance: 1.4
   lookAheadSmoothTime: 0.22
   teleportDistance: 15

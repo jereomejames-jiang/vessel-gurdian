@@ -147,6 +147,7 @@ public class KnowledgeTicker : MonoBehaviour
 
     public string DefaultEducation(UpgradeType type)
     {
+        if (VesselSkillCatalog.IsVesselSkill(type)) return VesselSkillCatalog.EducationFor(type);
         return "示例科普：选择健康的生活习惯，让每一次行动成为守护血管的一小步。";
     }
 
@@ -181,7 +182,7 @@ public class KnowledgeTicker : MonoBehaviour
         seal.rectTransform.sizeDelta = new Vector2(50f, 60f);
 
         skillTitle = MakeText("SkillTitle", plate, "", 23, new Color(1f, 0.86f, 0.52f));
-        categoryText = MakeText("Category", plate, "血管知识 · 示例", 17, new Color(0.8f, 0.68f, 0.47f));
+        categoryText = MakeText("Category", plate, "技能科普 · 现实医学", 17, new Color(0.8f, 0.68f, 0.47f));
         categoryText.alignment = TextAnchor.MiddleRight;
 
         viewport = MakeRect("ParchmentViewport", plate, new Vector2(750f, 38f), new Vector2(100f, 28f));

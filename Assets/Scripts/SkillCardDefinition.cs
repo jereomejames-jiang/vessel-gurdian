@@ -7,6 +7,7 @@ public class SkillCardDefinition : ScriptableObject
     public string displayName;
     public string description;
     public string educationText;
+    public string iconGlyph;
     public UpgradeType linkedUpgradeType;
     public Color cardColor = Color.white;
     public bool IsUnlocked { get { return PlayerPrefs.GetInt("VesselGuard.Codex.v1." + cardId, 0) == 1; } }

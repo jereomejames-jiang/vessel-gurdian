@@ -7,6 +7,7 @@ public class Bullet : MonoBehaviour
     public float knockbackForce = 0.12f;
     public bool hasHit;
     public int maxTargets = 1;
+    public CharacterCombat source;
     [System.NonSerialized] public HashSet<Enemy> hitEnemies = new HashSet<Enemy>();
 
     void OnTriggerEnter2D(Collider2D other)
@@ -22,6 +23,11 @@ public class Bullet : MonoBehaviour
             Vector2 direction = bulletBody == null ? Vector2.zero : bulletBody.linearVelocity;
             enemy.ApplyKnockback(direction, knockbackForce);
             enemy.TakeDamage(damage);
+            if (source != null)
+            {
+                source.TrySidewallHeal();
+                source.ApplySpringCoil(enemy);
+            }
             if (hasHit) Destroy(gameObject);
         }
     }

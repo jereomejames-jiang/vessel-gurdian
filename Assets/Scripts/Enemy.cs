@@ -21,11 +21,16 @@ public class Enemy : MonoBehaviour
     public int currentHP;
     public Transform player;
     public Rigidbody2D rb;
+    public SpriteRenderer spriteRenderer;
+    public Color visualColor = Color.white;
+    public float hitFlashTimer;
+    public float hitFlashDuration = 0.08f;
 
     void Awake()
     {
         currentHP = maxHP;
         rb = GetComponent<Rigidbody2D>();
+        spriteRenderer = GetComponent<SpriteRenderer>();
     }
 
     void Start()
@@ -49,6 +54,17 @@ public class Enemy : MonoBehaviour
         if (rb != null) rb.MovePosition(rb.position + (Vector2)direction * EffectiveMoveSpeed * Time.fixedDeltaTime);
     }
 
+    void Update()
+    {
+        if (spriteRenderer == null) return;
+        if (hitFlashTimer > 0f)
+        {
+            hitFlashTimer -= Time.deltaTime;
+            spriteRenderer.color = Color.Lerp(Color.white, visualColor, 1f - Mathf.Clamp01(hitFlashTimer / hitFlashDuration));
+        }
+        else if (spriteRenderer.color != visualColor) spriteRenderer.color = visualColor;
+    }
+
     void OnTriggerEnter2D(Collider2D other)
     {
         PlayerStats stats = other.GetComponent<PlayerStats>();
@@ -63,6 +79,7 @@ public class Enemy : MonoBehaviour
         EnemyArchetype archetype = GetComponent<EnemyArchetype>();
         if (archetype != null) amount = archetype.ModifyIncomingDamage(amount);
 
+        hitFlashTimer = hitFlashDuration;
         currentHP -= amount;
         if (currentHP <= 0)
         {
@@ -90,6 +107,7 @@ public class Enemy : MonoBehaviour
     {
         if (!deathPending) return;
         deathPending = false;
+        if (GameManager.Instance != null) GameManager.Instance.RegisterEnemyDefeated(this);
         if (xpOrbPrefab != null)
         {
             GameObject orbObject = Instantiate(xpOrbPrefab, transform.position, Quaternion.identity);

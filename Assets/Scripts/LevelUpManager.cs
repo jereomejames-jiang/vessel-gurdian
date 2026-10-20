@@ -13,6 +13,7 @@ public class LevelUpManager : MonoBehaviour
     public PlayerStats playerStats;
     public PlayerController playerController;
     public AutoAttack autoAttack;
+    public PlayerSkillCollection playerSkillCollection;
     public bool subscribed;
     public bool isChoosing;
     public int pendingLevels;
@@ -22,16 +23,28 @@ public class LevelUpManager : MonoBehaviour
 
     public void Subscribe()
     {
-        if (allUpgrades == null || allUpgrades.Length == 0)
-            allUpgrades = Resources.LoadAll<UpgradeOption>("");
+        // Always use the ten skills from the design sheet. This also migrates
+        // scenes that still serialize the five legacy prototype upgrades.
+        if (allUpgrades == null || allUpgrades.Length == 0 || !ContainsVesselSkill(allUpgrades))
+            allUpgrades = VesselSkillCatalog.CreateOptions();
         if (playerStats == null) playerStats = FindAnyObjectByType<PlayerStats>();
         if (playerController == null) playerController = FindAnyObjectByType<PlayerController>();
         if (autoAttack == null) autoAttack = FindAnyObjectByType<AutoAttack>();
+        if (playerSkillCollection == null) playerSkillCollection = FindAnyObjectByType<PlayerSkillCollection>();
+        if (playerSkillCollection != null) playerSkillCollection.Initialize(allUpgrades);
         if (!subscribed && playerStats != null)
         {
             playerStats.OnLevelUp += HandleLevelUp;
             subscribed = true;
         }
+    }
+
+    public bool ContainsVesselSkill(UpgradeOption[] options)
+    {
+        if (options == null) return false;
+        for (int i = 0; i < options.Length; i++)
+            if (options[i] != null && VesselSkillCatalog.IsVesselSkill(options[i].type)) return true;
+        return false;
     }
 
     void OnDisable()
@@ -85,6 +98,7 @@ public class LevelUpManager : MonoBehaviour
             (GameManager.Instance != null && GameManager.Instance.gameEnded)) return;
 
         Subscribe();
+        int previousSkillLevel = playerSkillCollection == null ? 0 : playerSkillCollection.GetLevel(option.type);
         // Clear before callbacks so the same choice cannot be applied twice.
         isChoosing = false;
         currentChoices = Array.Empty<UpgradeOption>();
@@ -106,6 +120,13 @@ public class LevelUpManager : MonoBehaviour
                 if (autoAttack != null) autoAttack.IncreaseBulletSpeed(option.value);
                 break;
         }
+        if (playerSkillCollection == null) playerSkillCollection = FindAnyObjectByType<PlayerSkillCollection>();
+        if (playerSkillCollection != null) playerSkillCollection.RecordSelection(option);
+        int nextSkillLevel = playerSkillCollection == null ? Mathf.Clamp(previousSkillLevel + 1, 1, 3) :
+            Mathf.Clamp(playerSkillCollection.GetLevel(option.type), 1, 3);
+        CharacterCombat combat = FindAnyObjectByType<CharacterCombat>();
+        if (combat != null && VesselSkillCatalog.IsVesselSkill(option.type))
+            combat.ApplyVesselSkill(option.type, playerSkillCollection == null ? 1 : playerSkillCollection.GetLevel(option.type));
         pendingLevels = Mathf.Max(0, pendingLevels - 1);
         if (pendingLevels > 0) ShowNextChoices();
         else { OnChoicesClosed?.Invoke(); }
@@ -118,7 +139,7 @@ public class LevelUpManager : MonoBehaviour
         if (option.skillCard != null) card = option.skillCard;
         else if (SkillCodexManager.Instance != null) card = SkillCodexManager.Instance.GetCardFor(option);
         if (card != null && CardRevealUI.Instance != null && CardRevealUI.Instance.revealPanel != null)
-            CardRevealUI.Instance.Show(card);
+            CardRevealUI.Instance.Show(card, previousSkillLevel, nextSkillLevel);
         else if (GameManager.Instance == null || !GameManager.Instance.gameEnded)
         {
             UIManager testUI = FindAnyObjectByType<UIManager>();

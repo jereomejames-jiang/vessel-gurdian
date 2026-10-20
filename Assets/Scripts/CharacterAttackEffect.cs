@@ -32,6 +32,29 @@ public class CharacterAttackEffect : MonoBehaviour
     public static Sprite whiteSprite;
     public static Material effectMaterial;
 
+    public static void EnsureEffectMaterial()
+    {
+        if (effectMaterial != null) return;
+        Shader shader = Shader.Find("Sprites/Default");
+        if (shader == null) shader = Shader.Find("Universal Render Pipeline/2D/Sprite-Lit-Default");
+        if (shader == null) shader = Shader.Find("Unlit/Color");
+        if (shader == null) shader = Shader.Find("Unlit/Texture");
+        if (shader == null) shader = Shader.Find("Legacy Shaders/Diffuse");
+        if (shader == null) shader = Shader.Find("Standard");
+        if (shader != null)
+        {
+            effectMaterial = new Material(shader);
+            effectMaterial.hideFlags = HideFlags.DontSave;
+            return;
+        }
+        // Ultimate fallback: borrow any live SpriteRenderer's material, guaranteed renderable.
+        SpriteRenderer fallback = FindAnyObjectByType<SpriteRenderer>();
+        if (fallback != null && fallback.sharedMaterial != null)
+            effectMaterial = fallback.sharedMaterial;
+        if (effectMaterial == null)
+            Debug.LogWarning("[CharacterAttackEffect] No shader available; lines will use default material.");
+    }
+
     public static CharacterAttackEffect Create(CharacterCombat owner, Vector3 position,
         CharacterEffectKind effectKind, float duration)
     {
@@ -43,6 +66,9 @@ public class CharacterAttackEffect : MonoBehaviour
         effect.kind = effectKind;
         effect.lifetime = duration;
         effect.color = CharacterCatalog.Colors[(int)owner.role];
+        if (owner.GetVesselSkillLevel(UpgradeType.SidewallForceps) > 0)
+            effect.color = new Color(0.95f, 0.16f, 0.22f, 1f);
+        EnsureEffectMaterial();
         if (effectMaterial == null)
         {
             SpriteRenderer playerRenderer = owner.GetComponent<SpriteRenderer>();
@@ -59,7 +85,7 @@ public class CharacterAttackEffect : MonoBehaviour
     public static void Sector(CharacterCombat owner, Vector3 position, Vector2 aim, float radius,
         float degrees, int hitDamage, bool scissors)
     {
-        CharacterAttackEffect effect = Create(owner, position, CharacterEffectKind.Sector, 0.23f);
+        CharacterAttackEffect effect = Create(owner, position, CharacterEffectKind.Sector, 0.28f);
         effect.direction = aim;
         effect.radius = radius;
         effect.angle = degrees;
@@ -79,21 +105,28 @@ public class CharacterAttackEffect : MonoBehaviour
         effect.damage = hitDamage;
         effect.tickInterval = 0.08f;
         effect.tickTimer = 0f;
-        LineRenderer line = effect.NewLine(width * 2f);
+        LineRenderer line = effect.NewLine(width * 2.5f);
         line.positionCount = 2;
         line.SetPosition(0, position);
         line.SetPosition(1, position + (Vector3)(aim * length));
+        LineRenderer glow = effect.NewLine(width * 4f);
+        glow.positionCount = 2;
+        glow.SetPosition(0, position);
+        glow.SetPosition(1, position + (Vector3)(aim * length));
+        Color glowColor = effect.color;
+        glowColor.a = 0.3f;
+        glow.startColor = glow.endColor = glowColor;
         effect.DamageArea(false);
     }
 
     public static void Burst(CharacterCombat owner, Vector3 position, float radius, int hitDamage, bool ripple)
     {
-        CharacterAttackEffect effect = Create(owner, position, CharacterEffectKind.Burst, ripple ? 0.6f : 0.3f);
+        CharacterAttackEffect effect = Create(owner, position, CharacterEffectKind.Burst, ripple ? 0.7f : 0.35f);
         effect.radius = radius;
         effect.damage = hitDamage;
         effect.ripple = ripple;
-        effect.NewLine(0.12f);
-        if (ripple) { effect.NewLine(0.07f); effect.NewLine(0.05f); }
+        effect.NewLine(0.15f);
+        if (ripple) { effect.NewLine(0.1f); effect.NewLine(0.06f); }
         effect.DamageArea(false);
     }
 
@@ -107,9 +140,9 @@ public class CharacterAttackEffect : MonoBehaviour
         effect.tickTimer = interval;
         effect.AddSprite();
         effect.spriteRenderer.sprite = GetWhiteSprite();
-        effect.spriteRenderer.color = new Color(effect.color.r, effect.color.g, effect.color.b, 0.12f);
-        effect.transform.localScale = Vector3.one * radius * 1.45f;
-        effect.NewLine(0.07f);
+        effect.spriteRenderer.color = new Color(effect.color.r, effect.color.g, effect.color.b, 0.15f);
+        effect.transform.localScale = Vector3.one * radius * 1.5f;
+        effect.NewLine(0.09f);
         return effect;
     }
 
@@ -124,10 +157,79 @@ public class CharacterAttackEffect : MonoBehaviour
 
     public static void Flash(CharacterCombat owner, Vector3 position, float radius, bool slow)
     {
-        CharacterAttackEffect effect = Create(owner, position, CharacterEffectKind.Flash, 0.6f);
+        CharacterAttackEffect effect = Create(owner, position, CharacterEffectKind.Flash, 0.7f);
         effect.radius = radius;
         effect.color = slow ? new Color(0.8f, 0.95f, 1f) : CharacterCatalog.Colors[2];
-        effect.NewLine(0.14f);
+        effect.NewLine(0.16f);
+    }
+
+    public static void SutureLightning(CharacterCombat owner, Vector3 target, bool enhanced)
+    {
+        if (owner == null) return;
+        EnsureEffectMaterial();
+        if (effectMaterial == null)
+        {
+            Debug.LogError("[CharacterAttackEffect] Cannot create lightning - effectMaterial is null!");
+            return;
+        }
+        GameObject obj = new GameObject("缝线·闪电劈落");
+        LineRenderer line = obj.AddComponent<LineRenderer>();
+        line.sharedMaterial = effectMaterial;
+        line.useWorldSpace = true;
+        int segments = enhanced ? 11 : 8;
+        line.positionCount = segments;
+        float height = enhanced ? 4.2f : 3.5f;
+        float jitter = enhanced ? 0.7f : 0.5f;
+        for (int i = 0; i < segments; i++)
+        {
+            float t = i / (float)(segments - 1);
+            Vector3 point = target + Vector3.up * (height * (1f - t));
+            if (i > 0 && i < segments - 1)
+                point.x += Random.Range(-jitter, jitter);
+            line.SetPosition(i, point);
+        }
+        line.startWidth = line.endWidth = enhanced ? 0.22f : 0.15f;
+        line.startColor = line.endColor = new Color(0.6f, 0.85f, 1f, 0.95f);
+        line.sortingOrder = 10;
+        if (enhanced)
+        {
+            // Unity 6: a second LineRenderer on the same GameObject throws on material assignment — use a child object.
+            GameObject forkObj = new GameObject("分叉");
+            forkObj.transform.SetParent(obj.transform, false);
+            LineRenderer fork = forkObj.AddComponent<LineRenderer>();
+            fork.sharedMaterial = effectMaterial;
+            fork.useWorldSpace = true;
+            fork.positionCount = 5;
+            fork.SetPosition(0, target + Vector3.up * 1.3f);
+            fork.SetPosition(1, target + Vector3.up * 0.85f + Vector3.left * 0.5f);
+            fork.SetPosition(2, target + Vector3.up * 0.45f + Vector3.right * 0.35f);
+            fork.SetPosition(3, target + Vector3.up * 0.15f + Vector3.left * 0.2f);
+            fork.SetPosition(4, target + Vector3.up * 0.05f);
+            fork.startWidth = fork.endWidth = 0.1f;
+            fork.startColor = fork.endColor = new Color(0.8f, 0.95f, 1f, 0.85f);
+            fork.sortingOrder = 10;
+        }
+        GameObject impact = new GameObject("缝线·落点闪光");
+        impact.transform.position = target;
+        SpriteRenderer flash = impact.AddComponent<SpriteRenderer>();
+        flash.sprite = MonsterSurvivorArtLibrary.LoadSingle("vfx_lightning") ?? GetWhiteSprite();
+        flash.color = new Color(0.7f, 0.9f, 1f, 0.9f);
+        flash.sortingOrder = 11;
+        impact.transform.localScale = new Vector3(enhanced ? 0.8f : 0.6f, enhanced ? 0.8f : 0.6f, 1f);
+        Destroy(impact, 0.12f);
+        Destroy(obj, enhanced ? 0.25f : 0.18f);
+    }
+
+    public static void HitBlock(Vector3 position, float size)
+    {
+        GameObject obj = new GameObject("弹簧圈命中特效");
+        obj.transform.position = position;
+        SpriteRenderer renderer = obj.AddComponent<SpriteRenderer>();
+        renderer.sprite = GetWhiteSprite();
+        renderer.color = new Color(0.72f, 1f, 0.55f, 0.85f);
+        renderer.sortingOrder = 9;
+        obj.transform.localScale = Vector3.one * size * 1.2f;
+        Destroy(obj, 0.22f);
     }
 
     public void Update()
@@ -207,6 +309,8 @@ public class CharacterAttackEffect : MonoBehaviour
             if (!inside) continue;
             if (slow) enemy.ApplySlow(0.65f, tickInterval + 0.2f);
             enemy.TakeDamage(damage);
+            source.TrySidewallHeal();
+            source.ApplySpringCoil(enemy);
         }
     }
 
@@ -215,7 +319,9 @@ public class CharacterAttackEffect : MonoBehaviour
         GameObject obj = new GameObject("SkillLine");
         obj.transform.SetParent(transform, false);
         LineRenderer line = obj.AddComponent<LineRenderer>();
-        line.sharedMaterial = effectMaterial;
+        EnsureEffectMaterial();
+        // A null sharedMaterial is legal (renders with the default material); never crash over it.
+        if (effectMaterial != null) line.sharedMaterial = effectMaterial;
         line.useWorldSpace = true;
         line.startWidth = line.endWidth = lineWidth;
         line.startColor = line.endColor = color;
@@ -226,24 +332,24 @@ public class CharacterAttackEffect : MonoBehaviour
 
     public void DrawRing(LineRenderer line, float ringRadius, float alpha)
     {
-        line.positionCount = 49;
+        line.positionCount = 65;
         Color tint = color;
         tint.a = alpha;
         line.startColor = line.endColor = tint;
-        for (int i = 0; i <= 48; i++)
+        for (int i = 0; i <= 64; i++)
         {
-            float radians = i * Mathf.PI * 2f / 48f;
+            float radians = i * Mathf.PI * 2f / 64f;
             line.SetPosition(i, origin + new Vector3(Mathf.Cos(radians), Mathf.Sin(radians), 0f) * ringRadius);
         }
     }
 
     public void DrawSector()
     {
-        const int segments = 24;
+        const int segments = 28;
         Vector3[] vertices = new Vector3[segments + 2];
         Color[] colors = new Color[vertices.Length];
         int[] triangles = new int[segments * 3];
-        LineRenderer edge = NewLine(0.1f);
+        LineRenderer edge = NewLine(0.12f);
         edge.positionCount = segments + 1;
         for (int i = 0; i <= segments; i++)
         {
@@ -252,7 +358,8 @@ public class CharacterAttackEffect : MonoBehaviour
             edge.SetPosition(i, origin + vertices[i + 1]);
             if (i < segments) { triangles[i * 3] = 0; triangles[i * 3 + 1] = i + 2; triangles[i * 3 + 2] = i + 1; }
         }
-        for (int i = 0; i < colors.Length; i++) colors[i] = new Color(color.r, color.g, color.b, 0.22f);
+        colors[0] = new Color(color.r, color.g, color.b, 0.35f);
+        for (int i = 1; i < colors.Length; i++) colors[i] = new Color(color.r, color.g, color.b, 0.18f);
         mesh = new Mesh { name = "ElectroknifeFan" };
         mesh.vertices = vertices;
         mesh.triangles = triangles;
@@ -260,12 +367,15 @@ public class CharacterAttackEffect : MonoBehaviour
         mesh.RecalculateBounds();
         gameObject.AddComponent<MeshFilter>().sharedMesh = mesh;
         meshRenderer = gameObject.AddComponent<MeshRenderer>();
-        meshRenderer.sharedMaterial = effectMaterial;
+        if (effectMaterial != null)
+            meshRenderer.sharedMaterial = effectMaterial;
+        else
+            Debug.LogError("[CharacterAttackEffect] Cannot assign material to sector mesh!");
         meshRenderer.sortingOrder = 7;
         if (scissors)
         {
-            NewLine(0.15f).positionCount = 2;
-            NewLine(0.15f).positionCount = 2;
+            NewLine(0.18f).positionCount = 2;
+            NewLine(0.18f).positionCount = 2;
         }
     }
 

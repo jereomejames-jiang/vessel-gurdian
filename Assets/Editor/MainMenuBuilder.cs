@@ -7,26 +7,12 @@ using UnityEngine.UI;
 
 public class MainMenuBuilder : EditorWindow
 {
-    [MenuItem("VesselGuard/创建主界面")]
+    [MenuItem("VesselGuard/重建主界面")]
     public static void CreateFromMenu()
-    {
-        MainMenuBuilder window = GetWindow<MainMenuBuilder>("VesselGuard 主界面");
-        window.Build();
-        window.Close();
-    }
-
-    public void OnGUI()
-    {
-        EditorGUILayout.LabelField("VesselGuard 主界面", EditorStyles.boldLabel);
-        EditorGUILayout.HelpBox("创建主菜单、开始游戏按钮和其它系统预留入口。", MessageType.Info);
-        if (GUILayout.Button("创建主界面", GUILayout.Height(32))) Build();
-    }
-
-    public void Build()
     {
         if (EditorApplication.isPlayingOrWillChangePlaymode)
         {
-            Debug.LogWarning("请退出播放模式后再创建主界面。");
+            Debug.LogWarning("请退出播放模式后再重建主界面。");
             return;
         }
 
@@ -42,9 +28,10 @@ public class MainMenuBuilder : EditorWindow
         canvas.renderMode = RenderMode.ScreenSpaceCamera;
         canvas.worldCamera = menuCamera;
         canvas.planeDistance = 1f;
+
         CreateBackground(canvas.transform);
-        CreateTitle(canvas.transform);
-        CreateMenuButtons(canvas.transform);
+        CreateTitleArea(canvas.transform);
+        CreateButtonArea(canvas.transform);
         CreateFooter(canvas.transform);
 
         GameObject controllerObject = new GameObject("MainMenuUI");
@@ -68,7 +55,7 @@ public class MainMenuBuilder : EditorWindow
 
         AssetDatabase.SaveAssets();
         AssetDatabase.Refresh();
-        Debug.Log("VesselGuard 主界面创建完成。");
+        Debug.Log("VesselGuard 主界面重建完成。");
     }
 
     public static void ConfigureBuildSettings(string menuPath, string gamePath)
@@ -91,7 +78,7 @@ public class MainMenuBuilder : EditorWindow
         camera.orthographic = true;
         camera.orthographicSize = 5.4f;
         camera.clearFlags = CameraClearFlags.SolidColor;
-        camera.backgroundColor = new Color(0.015f, 0.025f, 0.055f, 1f);
+        camera.backgroundColor = new Color(0.012f, 0.02f, 0.045f, 1f);
         return camera;
     }
 
@@ -116,61 +103,73 @@ public class MainMenuBuilder : EditorWindow
 
     public static void CreateBackground(Transform parent)
     {
+        // Deep space background
         GameObject background = new GameObject("Background");
         background.transform.SetParent(parent, false);
         Image image = background.AddComponent<Image>();
-        image.color = new Color(0.025f, 0.045f, 0.09f, 1f);
+        image.color = new Color(0.012f, 0.02f, 0.045f, 1f);
         SetRect(background.GetComponent<RectTransform>(), Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
 
-        GameObject glow = CreatePanel(parent, "CenterGlow", new Color(0.04f, 0.14f, 0.24f, 0.55f));
-        SetRect(glow.GetComponent<RectTransform>(), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(1050f, 720f), Vector2.zero);
+        // Center glow
+        GameObject glow = CreatePanel(parent, "CenterGlow", new Color(0.03f, 0.12f, 0.22f, 0.4f));
+        SetRect(glow.GetComponent<RectTransform>(), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(1100f, 750f), Vector2.zero);
 
-        GameObject line = CreatePanel(parent, "TopAccent", new Color(0.15f, 0.75f, 0.9f, 0.8f));
-        SetRect(line.GetComponent<RectTransform>(), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(500f, 5f), new Vector2(0f, -110f));
+        // Top accent line
+        GameObject line = CreatePanel(parent, "TopAccent", new Color(0.12f, 0.68f, 0.85f, 0.6f));
+        SetRect(line.GetComponent<RectTransform>(), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(480f, 4f), new Vector2(0f, -100f));
     }
 
-    public static void CreateTitle(Transform parent)
+    public static void CreateTitleArea(Transform parent)
     {
-        Text title = CreateText(parent, "GameTitle", "VESSELGUARD", 66, TextAnchor.MiddleCenter);
-        title.color = new Color(0.55f, 0.95f, 1f, 1f);
-        SetRect(title.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(900f, 100f), new Vector2(0f, -185f));
+        // Title - large and prominent
+        Text title = CreateText(parent, "GameTitle", "VESSELGUARD", 72, TextAnchor.MiddleCenter);
+        title.color = new Color(0.55f, 0.92f, 1f, 1f);
+        SetRect(title.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(900f, 110f), new Vector2(0f, -150f));
+        AddOutline(title, new Color(0f, 0f, 0f, 0.4f), new Vector2(1f, 1f));
 
-        Text subtitle = CreateText(parent, "GameSubtitle", "血 管 守 卫", 38, TextAnchor.MiddleCenter);
-        subtitle.color = new Color(1f, 0.35f, 0.42f, 1f);
-        SetRect(subtitle.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(900f, 68f), new Vector2(0f, -270f));
+        // Subtitle
+        Text subtitle = CreateText(parent, "GameSubtitle", "血 管 守 卫", 42, TextAnchor.MiddleCenter);
+        subtitle.color = new Color(0.98f, 0.35f, 0.42f, 1f);
+        SetRect(subtitle.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(900f, 80f), new Vector2(0f, -250f));
+        AddOutline(subtitle, new Color(0f, 0f, 0f, 0.4f), new Vector2(0.5f, 0.5f));
 
-        Text description = CreateText(parent, "GameDescription", "守护血管健康，击退风险细胞", 22, TextAnchor.MiddleCenter);
-        description.color = new Color(0.75f, 0.82f, 0.9f, 1f);
-        SetRect(description.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(800f, 50f), new Vector2(0f, -330f));
+        // Description - well separated from buttons
+        Text description = CreateText(parent, "GameDescription", "守护血管健康，击退风险细胞", 24, TextAnchor.MiddleCenter);
+        description.color = new Color(0.72f, 0.80f, 0.90f, 1f);
+        SetRect(description.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(800f, 60f), new Vector2(0f, -340f));
     }
 
-    public static void CreateMenuButtons(Transform parent)
+    public static void CreateButtonArea(Transform parent)
     {
-        Button start = CreateButton(parent, "StartButton", "开始游戏", 30, new Color(0.12f, 0.58f, 0.72f, 1f));
-        SetRect(start.GetComponent<RectTransform>(), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(360f, 84f), new Vector2(0f, 170f));
+        // Start button - primary action, centered
+        Button start = CreateButton(parent, "StartButton", "开始游戏", 34, new Color(0.12f, 0.58f, 0.72f, 1f));
+        SetRect(start.GetComponent<RectTransform>(), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(400f, 100f), new Vector2(0f, 60f));
 
+        // System entries label
         Text systemTitle = CreateText(parent, "SystemTitle", "其它系统入口", 22, TextAnchor.MiddleCenter);
-        systemTitle.color = new Color(0.6f, 0.7f, 0.82f, 1f);
-        SetRect(systemTitle.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(480f, 50f), new Vector2(0f, 45f));
+        systemTitle.color = new Color(0.58f, 0.68f, 0.80f, 1f);
+        SetRect(systemTitle.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(480f, 50f), new Vector2(0f, -80f));
 
-        Button settings = CreateButton(parent, "SettingsButton", "设置（预留）", 20, new Color(0.14f, 0.2f, 0.3f, 1f));
-        SetRect(settings.GetComponent<RectTransform>(), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(250f, 68f), new Vector2(-285f, -55f));
+        // Secondary buttons row
+        Button settings = CreateButton(parent, "SettingsButton", "设置（预留）", 22, new Color(0.14f, 0.20f, 0.30f, 1f));
+        SetRect(settings.GetComponent<RectTransform>(), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(260f, 72f), new Vector2(-320f, -180f));
 
-        Button codex = CreateButton(parent, "CodexButton", "血管图鉴（预留）", 20, new Color(0.14f, 0.2f, 0.3f, 1f));
-        SetRect(codex.GetComponent<RectTransform>(), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(250f, 68f), new Vector2(0f, -55f));
+        Button codex = CreateButton(parent, "CodexButton", "血管图鉴", 22, new Color(0.14f, 0.20f, 0.30f, 1f));
+        SetRect(codex.GetComponent<RectTransform>(), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(260f, 72f), new Vector2(0f, -180f));
 
-        Button achievements = CreateButton(parent, "AchievementsButton", "成就（预留）", 20, new Color(0.14f, 0.2f, 0.3f, 1f));
-        SetRect(achievements.GetComponent<RectTransform>(), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(250f, 68f), new Vector2(285f, -55f));
+        Button achievements = CreateButton(parent, "AchievementsButton", "成就（预留）", 22, new Color(0.14f, 0.20f, 0.30f, 1f));
+        SetRect(achievements.GetComponent<RectTransform>(), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(260f, 72f), new Vector2(320f, -180f));
 
-        Button quit = CreateButton(parent, "QuitButton", "退出", 20, new Color(0.28f, 0.12f, 0.18f, 1f));
-        SetRect(quit.GetComponent<RectTransform>(), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(170f, 58f), new Vector2(0f, 88f));
+        // Quit button - bottom center
+        Button quit = CreateButton(parent, "QuitButton", "退出", 22, new Color(0.28f, 0.14f, 0.20f, 1f));
+        SetRect(quit.GetComponent<RectTransform>(), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(200f, 64f), new Vector2(0f, 80f));
     }
 
     public static void CreateFooter(Transform parent)
     {
         Text status = CreateText(parent, "StatusText", "版本 0.1  ·  血管健康教育项目", 18, TextAnchor.MiddleCenter);
-        status.color = new Color(0.5f, 0.58f, 0.7f, 1f);
-        SetRect(status.rectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(900f, 42f), new Vector2(0f, 30f));
+        status.color = new Color(0.48f, 0.56f, 0.68f, 1f);
+        SetRect(status.rectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(900f, 42f), new Vector2(0f, 28f));
     }
 
     public static GameObject CreatePanel(Transform parent, string name, Color color)
@@ -219,6 +218,14 @@ public class MainMenuBuilder : EditorWindow
         textRect.offsetMin = new Vector2(8f, 8f);
         textRect.offsetMax = new Vector2(-8f, -8f);
         return button;
+    }
+
+    public static void AddOutline(Text text, Color color, Vector2 distance)
+    {
+        Outline outline = text.gameObject.AddComponent<Outline>();
+        outline.effectColor = color;
+        outline.effectDistance = distance;
+        outline.useGraphicAlpha = false;
     }
 
     public static void SetRect(RectTransform rect, Vector2 anchorMin, Vector2 anchorMax, Vector2 size, Vector2 position)

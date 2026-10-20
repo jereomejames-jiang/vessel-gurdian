@@ -28,47 +28,28 @@ public class SkillCodexManager : MonoBehaviour
 
     public void EnsureCards()
     {
-        if (cards != null && cards.Length > 0) return;
-        cards = Resources.LoadAll<SkillCardDefinition>("");
-        if (cards.Length == 0)
+        if (cards != null && cards.Length > 0 && System.Array.TrueForAll(cards, c => c != null && VesselSkillCatalog.IsVesselSkill(c.linkedUpgradeType))) return;
+        LevelUpManager levels = FindAnyObjectByType<LevelUpManager>();
+        if (levels != null) levels.Subscribe();
+        List<SkillCardDefinition> runtimeCards = new List<SkillCardDefinition>();
+        if (levels != null && levels.allUpgrades != null)
         {
-            LevelUpManager levels = FindAnyObjectByType<LevelUpManager>();
-            if (levels != null && levels.allUpgrades != null)
+            foreach (UpgradeOption option in levels.allUpgrades)
             {
-                List<SkillCardDefinition> runtimeCards = new List<SkillCardDefinition>();
-                foreach (UpgradeOption option in levels.allUpgrades)
-                {
-                    if (option == null) continue;
-                    SkillCardDefinition card = option.skillCard;
-                    if (card == null) card = ScriptableObject.CreateInstance<SkillCardDefinition>();
-                    card.cardId = option.type.ToString();
-                    card.displayName = option.displayName;
-                    card.description = option.description;
-                    card.educationText = EducationFor(option.type);
-                    card.linkedUpgradeType = option.type;
-                    card.cardColor = ColorFor(option.type);
-                    runtimeCards.Add(card);
-                }
-                cards = runtimeCards.ToArray();
+                if (option == null || !VesselSkillCatalog.IsVesselSkill(option.type)) continue;
+                SkillCardDefinition card = option.skillCard;
+                if (card == null) card = VesselSkillCatalog.CreateCard(VesselSkillCatalog.IndexOf(option.type));
+                runtimeCards.Add(card);
             }
         }
-        if (cards.Length == 0) cards = CreateFallbackCards();
+        cards = runtimeCards.Count == 0 ? CreateFallbackCards() : runtimeCards.ToArray();
         System.Array.Sort(cards, (a, b) => a.linkedUpgradeType.CompareTo(b.linkedUpgradeType));
     }
 
     public SkillCardDefinition[] CreateFallbackCards()
     {
-        UpgradeType[] types = { UpgradeType.Damage, UpgradeType.AttackSpeed, UpgradeType.MoveSpeed, UpgradeType.MaxHP, UpgradeType.BulletSpeed };
-        string[] names = { "伤害 +1", "攻速 +10%", "移速 +15%", "血量 +2", "弹速 +20%" };
-        string[] descriptions = { "子弹伤害增加 1", "攻击间隔缩短 10%", "玩家移动速度增加 15%", "最大生命值增加 2", "子弹速度增加 20%" };
         List<SkillCardDefinition> result = new List<SkillCardDefinition>();
-        for (int i = 0; i < types.Length; i++)
-        {
-            SkillCardDefinition card = ScriptableObject.CreateInstance<SkillCardDefinition>();
-            card.cardId = types[i].ToString(); card.displayName = names[i]; card.description = descriptions[i];
-            card.linkedUpgradeType = types[i]; card.educationText = EducationFor(types[i]); card.cardColor = ColorFor(types[i]);
-            result.Add(card);
-        }
+        for (int i = 0; i < VesselSkillCatalog.Types.Length; i++) result.Add(VesselSkillCatalog.CreateCard(i));
         return result.ToArray();
     }
 
@@ -123,13 +104,17 @@ public class SkillCodexManager : MonoBehaviour
         EnsureCards();
         int count = 0;
         foreach (SkillCardDefinition card in cards) if (card != null && card.IsUnlocked) count++;
-        if (titleText != null) titleText.text = "血管图鉴  ·  技能卡牌   " + count + "/" + cards.Length;
+        if (titleText != null) titleText.text = "血管图鉴 · " + count + "/" + cards.Length;
         for (int i = 0; i < cardButtons.Count; i++)
         {
             if (i >= cards.Length || cards[i] == null) { cardButtons[i].gameObject.SetActive(false); continue; }
             SkillCardDefinition card = cards[i];
             Text text = cardButtons[i].GetComponentInChildren<Text>();
-            text.text = card.IsUnlocked ? "已点亮\n" + card.displayName : card.displayName + "\n尚未点亮";
+            Sprite icon = MonsterSurvivorArtLibrary.SkillIcon(card.linkedUpgradeType);
+            text.text = icon == null
+                ? (string.IsNullOrEmpty(card.iconGlyph) ? "" : card.iconGlyph + "  ") + (card.IsUnlocked ? "已点亮\n" + card.displayName : card.displayName + "\n尚未点亮")
+                : (card.IsUnlocked ? "已点亮\n" + card.displayName : card.displayName + "\n尚未点亮");
+            AttachCardIcon(cardButtons[i], icon, card.IsUnlocked);
             Color cardColor = card.cardColor == Color.white ? ColorFor(card.linkedUpgradeType) : card.cardColor;
             cardButtons[i].GetComponent<Image>().color = card.IsUnlocked
                 ? cardColor : new Color(0.13f, 0.16f, 0.21f);
@@ -142,8 +127,8 @@ public class SkillCodexManager : MonoBehaviour
         if (detailText == null || cards == null || index < 0 || index >= cards.Length) return;
         selectedIndex = index;
         SkillCardDefinition card = cards[index];
-        detailText.text = card.IsUnlocked
-            ? card.displayName + "  ·  " + card.description + "\n\n" + card.educationText
+            detailText.text = card.IsUnlocked
+            ? (string.IsNullOrEmpty(card.iconGlyph) ? "" : card.iconGlyph + "  ") + card.displayName + "  ·  " + card.description + "\n\n" + card.educationText
             : card.displayName + "\n\n在战斗升级时选择对应技能，即可永久点亮这张卡牌。";
     }
 
@@ -172,18 +157,18 @@ public class SkillCodexManager : MonoBehaviour
         content.transform.SetParent(codexPanel.transform, false);
         RectTransform contentRect = content.GetComponent<RectTransform>();
         contentRect.anchorMin = contentRect.anchorMax = Vector2.one * 0.5f;
-        contentRect.sizeDelta = new Vector2(1000f, 640f);
+        contentRect.sizeDelta = new Vector2(1000f, 700f);
         content.GetComponent<Image>().color = new Color(0.025f, 0.05f, 0.09f);
         titleText = MakeText(content.transform, "CodexTitle", "", 30, TextAnchor.MiddleLeft,
             new Vector2(-60f, 270f), new Vector2(760f, 50f));
         closeButton = MakeButton(content.transform, "CodexCloseButton", "返回", new Vector2(410f, 270f), new Vector2(120f, 48f));
         closeButton.onClick.AddListener(() => SetPanel(false));
         detailText = MakeText(content.transform, "CodexDetail", "", 22, TextAnchor.UpperLeft,
-            new Vector2(0f, -220f), new Vector2(900f, 150f));
+            new Vector2(0f, -270f), new Vector2(900f, 175f));
         for (int i = 0; i < cards.Length; i++)
         {
             Button button = MakeButton(content.transform, "SkillCard_" + cards[i].cardId, "",
-                new Vector2(-310f + (i % 3) * 310f, 120f - (i / 3) * 155f), new Vector2(280f, 125f));
+                new Vector2(-345f + (i % 4) * 230f, 120f - (i / 4) * 155f), new Vector2(220f, 125f));
             int index = i;
             button.onClick.AddListener(() => ShowCardDetail(index));
             cardButtons.Add(button);
@@ -191,15 +176,51 @@ public class SkillCodexManager : MonoBehaviour
         codexPanel.SetActive(false);
     }
 
+    public void AttachCardIcon(Button button, Sprite sprite, bool unlocked)
+    {
+        if (button == null) return;
+        Transform existing = button.transform.Find("SkillIcon");
+        if (sprite == null)
+        {
+            if (existing != null) existing.gameObject.SetActive(false);
+            return;
+        }
+        GameObject iconObject = existing == null ? new GameObject("SkillIcon", typeof(RectTransform), typeof(Image)) : existing.gameObject;
+        iconObject.transform.SetParent(button.transform, false);
+        Image image = iconObject.GetComponent<Image>();
+        image.sprite = sprite;
+        image.color = unlocked ? Color.white : new Color(0.55f, 0.62f, 0.68f, 1f);
+        image.raycastTarget = false;
+        RectTransform rect = image.rectTransform;
+        rect.anchorMin = new Vector2(0f, 1f);
+        rect.anchorMax = new Vector2(0f, 1f);
+        rect.pivot = new Vector2(0f, 1f);
+        rect.sizeDelta = new Vector2(52f, 52f);
+        rect.anchoredPosition = new Vector2(10f, -10f);
+        iconObject.SetActive(true);
+    }
+
     public Button MakeButton(Transform parent, string name, string caption, Vector2 position, Vector2 size)
     {
         GameObject obj = new GameObject(name, typeof(RectTransform), typeof(Image), typeof(Button));
         obj.transform.SetParent(parent, false);
-        obj.GetComponent<Image>().color = new Color(0.12f, 0.30f, 0.40f);
+        Image image = obj.GetComponent<Image>();
+        image.color = new Color(0.12f, 0.30f, 0.40f);
         obj.GetComponent<Button>().transition = Selectable.Transition.None;
         RectTransform rect = obj.GetComponent<RectTransform>();
         rect.anchorMin = rect.anchorMax = Vector2.one * 0.5f;
         rect.sizeDelta = size; rect.anchoredPosition = position;
+        // Subtle border to reduce jagged edges.
+        GameObject border = new GameObject("Border", typeof(RectTransform), typeof(Image));
+        border.transform.SetParent(obj.transform, false);
+        Image borderImage = border.GetComponent<Image>();
+        borderImage.color = new Color(0.08f, 0.18f, 0.26f, 0.6f);
+        borderImage.raycastTarget = false;
+        RectTransform borderRect = border.GetComponent<RectTransform>();
+        borderRect.anchorMin = Vector2.zero;
+        borderRect.anchorMax = Vector2.one;
+        borderRect.offsetMin = new Vector2(-2f, -2f);
+        borderRect.offsetMax = new Vector2(2f, 2f);
         MakeText(obj.transform, "Label", caption, 23, TextAnchor.MiddleCenter, Vector2.zero, size - Vector2.one * 12f);
         return obj.GetComponent<Button>();
     }
@@ -216,11 +237,17 @@ public class SkillCodexManager : MonoBehaviour
         RectTransform rect = text.rectTransform;
         rect.anchorMin = rect.anchorMax = Vector2.one * 0.5f;
         rect.sizeDelta = dimensions; rect.anchoredPosition = position;
+        // Subtle outline for anti-aliasing.
+        Outline outline = obj.AddComponent<Outline>();
+        outline.effectColor = new Color(0f, 0f, 0f, 0.3f);
+        outline.effectDistance = new Vector2(0.5f, 0.5f);
+        outline.useGraphicAlpha = false;
         return text;
     }
 
     public string EducationFor(UpgradeType type)
     {
+        if (VesselSkillCatalog.IsVesselSkill(type)) return VesselSkillCatalog.EducationFor(type);
         switch (type)
         {
             case UpgradeType.Damage: return "减少烟草暴露、控制血脂，有助于保护血管内皮。";

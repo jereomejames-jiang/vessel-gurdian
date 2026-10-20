@@ -6,7 +6,17 @@ public enum UpgradeType
     AttackSpeed,
     MoveSpeed,
     MaxHP,
-    BulletSpeed
+    BulletSpeed,
+    MembraneStent = 10,
+    FlushNeedle = 11,
+    DissectionScissors = 12,
+    SidewallForceps = 13,
+    Suture = 14,
+    MicroscopicHemostat = 15,
+    SpringCoil = 16,
+    ThrombusCatheter = 17,
+    SuctionTube = 18,
+    AblationBomb = 19
 }
 
 [CreateAssetMenu(fileName = "UpgradeOption", menuName = "VesselGuard/Upgrade Option")]

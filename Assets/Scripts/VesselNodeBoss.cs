@@ -33,6 +33,12 @@ public class VesselNodeBoss : MonoBehaviour
             if (controller != null) player = controller.transform;
         }
         if (enemy != null) enemy.externalMovement = true;
+        if (enemy != null) enemy.OnDied += HandleEnemyDied;
+    }
+
+    public void HandleEnemyDied(Enemy deadEnemy)
+    {
+        NotifyDefeated();
     }
 
     public void Start()
@@ -149,6 +155,7 @@ public class VesselNodeBoss : MonoBehaviour
 
     public void OnDestroy()
     {
+        if (enemy != null) enemy.OnDied -= HandleEnemyDied;
         if (enemy != null) enemy.externalMovement = false;
         if (enemy != null && enemy.currentHP <= 0) NotifyDefeated();
     }

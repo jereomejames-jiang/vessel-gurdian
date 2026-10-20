@@ -3,12 +3,28 @@ using UnityEngine;
 public class ExperienceOrb : MonoBehaviour
 {
     public int xpValue = 1;
-    public float magnetRange = 3f;
+    public float magnetRange = 3.5f;
     public float magnetSpeed = 8f;
 
     public Transform player;
     public PlayerStats playerStats;
     public bool collected;
+
+    void Start()
+    {
+        ApplySuctionTubeBonus();
+        SpriteRenderer renderer = GetComponent<SpriteRenderer>();
+        if (renderer == null) return;
+        string gem = xpValue >= 15 ? "xp_purple" : (xpValue >= 5 ? "xp_orange" : (xpValue >= 3 ? "xp_green" : "xp_blue"));
+        Sprite gemSprite = MonsterSurvivorArtLibrary.LoadSingle(gem);
+        if (gemSprite != null) renderer.sprite = gemSprite;
+        renderer.color = Color.white;
+        renderer.color = xpValue >= 15 ? new Color(1f, 0.72f, 1f) :
+            (xpValue >= 5 ? new Color(0.72f, 0.42f, 1f) :
+            (xpValue >= 3 ? new Color(1f, 0.76f, 0.24f) : new Color(0.26f, 0.88f, 1f)));
+        float scale = xpValue >= 15 ? 3.2f : (xpValue >= 5 ? 2.4f : 1.8f);
+        transform.localScale *= scale;
+    }
 
     void Update()
     {
@@ -56,7 +72,18 @@ public class ExperienceOrb : MonoBehaviour
         {
             collected = true;
             playerStats.GainXP(xpValue);
+            if (GameManager.Instance != null) GameManager.Instance.RegisterExperienceCollected(xpValue);
             Destroy(gameObject);
         }
+    }
+
+    void ApplySuctionTubeBonus()
+    {
+        CharacterCombat combat = FindAnyObjectByType<CharacterCombat>();
+        if (combat == null) return;
+        int level = combat.GetVesselSkillLevel(UpgradeType.SuctionTube);
+        if (level <= 0) return;
+        float bonus = level >= 3 ? 0.30f : (level == 2 ? 0.20f : 0.10f);
+        magnetRange *= (1f + bonus);
     }
 }
