@@ -103,7 +103,7 @@ public class CharacterAttackEffect : MonoBehaviour
         effect.length = length;
         effect.width = width;
         effect.damage = hitDamage;
-        effect.tickInterval = 0.08f;
+        effect.tickInterval = GameBalance.Get("effect.beam_tick", 0.08f);
         effect.tickTimer = 0f;
         LineRenderer line = effect.NewLine(width * 2.5f);
         line.positionCount = 2;
@@ -148,7 +148,8 @@ public class CharacterAttackEffect : MonoBehaviour
 
     public static void Throw(CharacterCombat owner, Vector3 landing, bool missile)
     {
-        CharacterAttackEffect effect = Create(owner, owner.transform.position, CharacterEffectKind.Projectile, 0.35f);
+        CharacterAttackEffect effect = Create(owner, owner.transform.position, CharacterEffectKind.Projectile,
+            missile ? GameBalance.Get("nurse.missile_flight", 0.35f) : GameBalance.Get("pharmacist.ampoule_flight", 0.35f));
         effect.destination = landing;
         effect.missile = missile;
         effect.AddSprite();
@@ -245,7 +246,9 @@ public class CharacterAttackEffect : MonoBehaviour
             transform.Rotate(0f, 0f, Time.deltaTime * 400f);
             if (elapsed >= lifetime)
             {
-                if (missile) Burst(source, destination, 1.7f, source.weapon.bulletDamage * 4 + 2, false);
+                if (missile) Burst(source, destination, GameBalance.Get("nurse.missile_radius", 1.7f),
+                    source.weapon.bulletDamage * GameBalance.GetInt("nurse.missile_damage_mult", 4) +
+                    GameBalance.GetInt("nurse.missile_damage_add", 2), false);
                 else source.AmpouleImpact(destination);
             }
         }
@@ -307,7 +310,8 @@ public class CharacterAttackEffect : MonoBehaviour
                     inside = offset.sqrMagnitude < 0.01f || Vector2.Angle(direction, offset) <= angle * 0.5f;
             }
             if (!inside) continue;
-            if (slow) enemy.ApplySlow(0.65f, tickInterval + 0.2f);
+            if (slow) enemy.ApplySlow(GameBalance.Get("effect.tick_slow_mult", 0.65f),
+                tickInterval + GameBalance.Get("effect.tick_slow_extra", 0.2f));
             enemy.TakeDamage(damage);
             source.TrySidewallHeal();
             source.ApplySpringCoil(enemy);

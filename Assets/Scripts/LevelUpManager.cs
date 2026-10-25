@@ -23,6 +23,7 @@ public class LevelUpManager : MonoBehaviour
 
     public void Subscribe()
     {
+        choicesPerLevel = GameBalance.GetInt("game.choices_per_level", choicesPerLevel);
         // Always use the ten skills from the design sheet. This also migrates
         // scenes that still serialize the five legacy prototype upgrades.
         if (allUpgrades == null || allUpgrades.Length == 0 || !ContainsVesselSkill(allUpgrades))

@@ -55,7 +55,8 @@ public class CharacterCombat : MonoBehaviour
         if (rank < 4) return;
         specialTimer -= Time.deltaTime;
         if (specialTimer > 0f) return;
-        specialTimer = role == CharacterRole.Nurse ? 8f : 12f;
+        specialTimer = role == CharacterRole.Nurse ? GameBalance.Get("character.special_cd_nurse", 8f) :
+            GameBalance.Get("character.special_cd_other", 12f);
         PerformSpecial();
     }
 
@@ -66,10 +67,10 @@ public class CharacterCombat : MonoBehaviour
         // Apply crossed thresholds once, including XP gains spanning several levels.
         if (role == CharacterRole.Pharmacist && rank < 1 && newRank >= 1)
         {
-            if (controller != null) controller.moveSpeed *= 1.1f;
-            stats.IncreaseMaxHP(1);
+            if (controller != null) controller.moveSpeed *= GameBalance.Get("pharmacist.r1_move_mult", 1.1f);
+            stats.IncreaseMaxHP(GameBalance.GetInt("pharmacist.r1_hp_bonus", 1));
         }
-        if (rank < 4 && newRank >= 4) specialTimer = 3f;
+        if (rank < 4 && newRank >= 4) specialTimer = GameBalance.Get("character.special_first_delay", 3f);
         rank = newRank;
         evolutionNotice = CharacterCatalog.Name(role) + "进化 " + rank + "：" + CharacterCatalog.Route(role, rank);
         evolutionNoticeTimer = 5f;
@@ -78,8 +79,10 @@ public class CharacterCombat : MonoBehaviour
     public float IntervalMultiplier()
     {
         if (role == CharacterRole.Doctor) return 1f;
-        if (role == CharacterRole.Nurse) return rank >= 5 ? 0.32f : (rank >= 1 ? 0.72f : 1f);
-        return rank >= 5 ? 0.5f : (rank >= 2 ? 0.75f : 1f);
+        if (role == CharacterRole.Nurse) return rank >= 5 ? GameBalance.Get("nurse.interval_mult_r5", 0.32f) :
+            (rank >= 1 ? GameBalance.Get("nurse.interval_mult_r1", 0.72f) : GameBalance.Get("nurse.interval_mult_r0", 1f));
+        return rank >= 5 ? GameBalance.Get("pharmacist.interval_mult_r5", 0.5f) :
+            (rank >= 2 ? GameBalance.Get("pharmacist.interval_mult_r2", 0.75f) : GameBalance.Get("pharmacist.interval_mult_r0", 1f));
     }
 
     public Vector2 AimDirection()
@@ -139,7 +142,7 @@ public class CharacterCombat : MonoBehaviour
         level = Mathf.Clamp(level, 1, 3);
         if (type == UpgradeType.MembraneStent && stats != null) stats.ConfigureMembraneStent(level);
         if (type == UpgradeType.MembraneStent) EnsureMembraneShield(level);
-        if (type == UpgradeType.FlushNeedle) EnsureFlushNeedles(level + 1);
+        if (type == UpgradeType.FlushNeedle) EnsureFlushNeedles(level + GameBalance.GetInt("skill.rinse.count_base", 1));
         if (type == UpgradeType.ThrombusCatheter) EnsureCatheters(level);
         evolutionNotice = VesselSkillCatalog.GlyphFor(type) + "  " + CharacterCatalog.Name(role) + "获得 " + VesselSkillCatalog.EducationFor(type).Split('。')[0];
         evolutionNoticeTimer = 3.5f;
@@ -214,33 +217,38 @@ public class CharacterCombat : MonoBehaviour
             vesselSkillTimer -= Time.deltaTime;
             if (vesselSkillTimer <= 0f)
             {
-                vesselSkillTimer = Mathf.Max(1.2f, 2.8f - scissors * 0.35f);
+                vesselSkillTimer = Mathf.Max(GameBalance.Get("skill.scissors.period_min", 1.2f),
+                    GameBalance.Get("skill.scissors.period_base", 2.8f) - scissors * GameBalance.Get("skill.scissors.period_per_level", 0.35f));
                 Vector2 aim = AimDirection();
-                float radius = scissors >= 2 ? 4.1f : 3.3f;
-                CharacterAttackEffect.Sector(this, transform.position, aim, radius, scissors >= 2 ? 100f : 82f,
+                float radius = scissors >= 2 ? GameBalance.Get("skill.scissors.radius_lv2", 4.1f) : GameBalance.Get("skill.scissors.radius_lv1", 3.3f);
+                CharacterAttackEffect.Sector(this, transform.position, aim, radius,
+                    scissors >= 2 ? GameBalance.Get("skill.scissors.angle_lv2", 100f) : GameBalance.Get("skill.scissors.angle_lv1", 82f),
                     Mathf.Max(1, weapon.bulletDamage), true);
                 if (scissors >= 3)
-                    CharacterAttackEffect.Sector(this, transform.position, Quaternion.Euler(0f, 0f, 90f) * aim, radius, 42f,
-                        Mathf.Max(1, weapon.bulletDamage), true);
+                    CharacterAttackEffect.Sector(this, transform.position, Quaternion.Euler(0f, 0f, 90f) * aim, radius,
+                        GameBalance.Get("skill.scissors.cross_angle", 42f), Mathf.Max(1, weapon.bulletDamage), true);
             }
         }
 
         int flush = GetVesselSkillLevel(UpgradeType.FlushNeedle);
         if (flush > 0)
         {
-            EnsureFlushNeedles(flush + 1);
-            float radius = 1.25f + flush * 0.18f;
+            EnsureFlushNeedles(flush + GameBalance.GetInt("skill.rinse.count_base", 1));
+            float radius = GameBalance.Get("skill.rinse.radius_base", 1.25f) + flush * GameBalance.Get("skill.rinse.radius_per_level", 0.18f);
+            float hitRadius = GameBalance.Get("skill.rinse.hit_radius", 0.55f);
             for (int i = 0; i < flushNeedles.Count; i++)
             {
-                float angle = Time.time * (95f + flush * 12f) + i * 360f / flushNeedles.Count;
+                float angle = Time.time * (GameBalance.Get("skill.rinse.angular_base", 95f) +
+                    flush * GameBalance.Get("skill.rinse.angular_per_level", 12f)) + i * 360f / flushNeedles.Count;
                 Vector3 pos = transform.position + Quaternion.Euler(0f, 0f, angle) * Vector3.right * radius;
                 flushNeedles[i].transform.position = pos;
                 RefreshTargets();
                 for (int j = 0; j < targets.Count; j++)
                 {
                     Enemy enemy = targets[j];
-                    if (enemy != null && (enemy.transform.position - pos).sqrMagnitude < 0.55f * 0.55f)
-                        enemy.ApplyKnockback((enemy.transform.position - transform.position).normalized, 0.18f);
+                    if (enemy != null && (enemy.transform.position - pos).sqrMagnitude < hitRadius * hitRadius)
+                        enemy.ApplyKnockback((enemy.transform.position - transform.position).normalized,
+                            GameBalance.Get("skill.rinse.knockback", 0.18f));
                 }
             }
         }
@@ -252,12 +260,13 @@ public class CharacterCombat : MonoBehaviour
             catheterTimer -= Time.deltaTime;
             for (int i = 0; i < catheters.Count; i++)
             {
-                float angle = Time.time * 55f + i * 360f / catheters.Count;
-                catheters[i].transform.position = transform.position + Quaternion.Euler(0f, 0f, angle) * Vector3.up * 1.55f;
+                float angle = Time.time * GameBalance.Get("skill.suction.angular_speed", 55f) + i * 360f / catheters.Count;
+                catheters[i].transform.position = transform.position + Quaternion.Euler(0f, 0f, angle) * Vector3.up *
+                    GameBalance.Get("skill.suction.orbit_radius", 1.55f);
             }
             if (catheterTimer <= 0f)
             {
-                catheterTimer = 0.9f;
+                catheterTimer = GameBalance.Get("skill.suction.laser_interval", 0.9f);
                 RefreshTargets();
                 Enemy target = null; float nearest = float.MaxValue;
                 for (int i = 0; i < targets.Count; i++) if (targets[i] != null && targets[i].currentHP > 0)
@@ -269,8 +278,10 @@ public class CharacterCombat : MonoBehaviour
                     for (int i = 0; i < catheters.Count; i++)
                     {
                         Vector2 direction = (target.transform.position - catheters[i].transform.position).normalized;
-                        CharacterAttackEffect.Beam(this, catheters[i].transform.position, direction, 4.2f, 0.15f,
-                            Mathf.Max(1, weapon.bulletDamage / 2), 0.18f);
+                        CharacterAttackEffect.Beam(this, catheters[i].transform.position, direction,
+                            GameBalance.Get("skill.suction.laser_length", 4.2f), GameBalance.Get("skill.suction.laser_width", 0.15f),
+                            Mathf.Max(1, Mathf.FloorToInt(weapon.bulletDamage / GameBalance.Get("skill.suction.damage_div", 2f))),
+                            GameBalance.Get("skill.suction.laser_duration", 0.18f));
                     }
             }
         }
@@ -281,7 +292,7 @@ public class CharacterCombat : MonoBehaviour
             ablationBombTimer -= Time.deltaTime;
             if (ablationBombTimer <= 0f)
             {
-                ablationBombTimer = 2.5f;
+                ablationBombTimer = GameBalance.Get("skill.ablation.interval", 2.5f);
                 ThrowAblationBombs(bomb);
             }
         }
@@ -332,7 +343,7 @@ public class CharacterCombat : MonoBehaviour
             Vector3 viewport = camera == null ? Vector3.one * 0.5f : camera.WorldToViewportPoint(enemy.transform.position);
             if (viewport.z > 0f && viewport.x >= 0f && viewport.x <= 1f && viewport.y >= 0f && viewport.y <= 1f) visible.Add(enemy);
         }
-        int count = Mathf.Min(visible.Count, level >= 3 ? 4 : (level == 2 ? 3 : 2));
+        int count = Mathf.Min(visible.Count, level + GameBalance.GetInt("skill.suture.count_base", 1));
         for (int i = 0; i < count; i++)
         {
             int swap = Random.Range(i, visible.Count); Enemy temp = visible[i]; visible[i] = visible[swap]; visible[swap] = temp;
@@ -346,10 +357,11 @@ public class CharacterCombat : MonoBehaviour
     {
         int level = GetVesselSkillLevel(UpgradeType.SidewallForceps);
         if (level <= 0) return;
-        float chance = level >= 3 ? 0.30f : (level == 2 ? 0.20f : 0.15f);
+        float chance = level >= 3 ? GameBalance.Get("skill.forceps.chance_lv3", 0.30f) :
+            (level == 2 ? GameBalance.Get("skill.forceps.chance_lv2", 0.20f) : GameBalance.Get("skill.forceps.chance_lv1", 0.15f));
         if (Random.value <= chance && stats != null)
         {
-            int amount = Mathf.Max(1, Mathf.CeilToInt(stats.maxHP * 0.05f));
+            int amount = Mathf.Max(1, Mathf.CeilToInt(stats.maxHP * GameBalance.Get("skill.forceps.heal_percent", 0.05f)));
             stats.Heal(amount);
         }
     }
@@ -358,7 +370,9 @@ public class CharacterCombat : MonoBehaviour
     {
         int level = GetVesselSkillLevel(UpgradeType.SpringCoil);
         if (level <= 0 || enemy == null) return;
-        enemy.ApplySlow(level >= 3 ? 0.70f : (level == 2 ? 0.80f : 0.90f), 1.2f);
+        enemy.ApplySlow(level >= 3 ? GameBalance.Get("skill.coil.slow_lv3", 0.70f) :
+            (level == 2 ? GameBalance.Get("skill.coil.slow_lv2", 0.80f) : GameBalance.Get("skill.coil.slow_lv1", 0.90f)),
+            GameBalance.Get("skill.coil.duration", 1.2f));
         CharacterAttackEffect.HitBlock(enemy.transform.position, level >= 3 ? 0.3f : 0.2f);
     }
 
@@ -369,15 +383,18 @@ public class CharacterCombat : MonoBehaviour
         if (level <= 0) return;
         hemostatPools.RemoveAll(pool => pool == null || pool.retired);
         while (hemostatPools.Count >= level) { hemostatPools[0].Retire(); hemostatPools.RemoveAt(0); }
-        hemostatPools.Add(CharacterAttackEffect.Pool(this, enemy.transform.position, 1.25f + level * 0.25f, 1f,
-            Mathf.Max(1, weapon.bulletDamage / 2), 0.25f));
+        hemostatPools.Add(CharacterAttackEffect.Pool(this, enemy.transform.position,
+            GameBalance.Get("skill.clamp.radius_base", 1.25f) + level * GameBalance.Get("skill.clamp.radius_per_level", 0.25f),
+            GameBalance.Get("skill.clamp.duration", 1f),
+            Mathf.Max(1, Mathf.FloorToInt(weapon.bulletDamage / GameBalance.Get("skill.clamp.damage_div", 2f))),
+            GameBalance.Get("skill.clamp.tick", 0.25f)));
     }
 
     public void ThrowAblationBombs(int level)
     {
         RefreshTargets();
-        int bombCount = level >= 3 ? 3 : 2;
-        float delay = level >= 3 ? 0.5f : 1f;
+        int bombCount = level >= 3 ? GameBalance.GetInt("skill.ablation.count_lv3", 3) : GameBalance.GetInt("skill.ablation.count_lv12", 2);
+        float delay = level >= 3 ? GameBalance.Get("skill.ablation.delay_lv3", 0.5f) : GameBalance.Get("skill.ablation.delay_lv12", 1f);
         List<Enemy> candidates = new List<Enemy>();
         Camera camera = Camera.main;
         for (int i = 0; i < targets.Count; i++)
@@ -398,22 +415,27 @@ public class CharacterCombat : MonoBehaviour
     public System.Collections.IEnumerator ThrowDelayedBomb(Vector3 landing, float delay)
     {
         CharacterAttackEffect.Throw(this, landing, false);
-        yield return new WaitForSeconds(0.35f + delay);
-        CharacterAttackEffect.Burst(this, landing, 2.2f, Mathf.Max(2, weapon.bulletDamage + 2), true);
+        yield return new WaitForSeconds(GameBalance.Get("skill.ablation.extra_delay", 0.35f) + delay);
+        CharacterAttackEffect.Burst(this, landing, GameBalance.Get("skill.ablation.blast_radius", 2.2f),
+            Mathf.Max(GameBalance.GetInt("skill.ablation.damage_min", 2),
+                weapon.bulletDamage + GameBalance.GetInt("skill.ablation.damage_add", 2)), true);
     }
 
     public IEnumerator SecondSlash(Vector2 aim)
     {
-        yield return new WaitForSeconds(0.16f);
+        yield return new WaitForSeconds(GameBalance.Get("doctor.double_slash_delay", 0.16f));
         if (stats != null && stats.currentHP > 0) Slash(aim);
     }
 
     public void Slash(Vector2 aim)
     {
-        float radius = rank >= 3 ? 4.1f : (rank >= 1 ? 3.5f : 3f);
-        float angle = rank >= 5 ? 170f : (rank >= 3 ? 115f : (rank >= 1 ? 95f : 80f));
+        float radius = rank >= 3 ? GameBalance.Get("doctor.radius_r3", 4.1f) :
+            (rank >= 1 ? GameBalance.Get("doctor.radius_r1", 3.5f) : GameBalance.Get("doctor.radius_r0", 3f));
+        float angle = rank >= 5 ? GameBalance.Get("doctor.angle_r5", 170f) :
+            (rank >= 3 ? GameBalance.Get("doctor.angle_r3", 115f) :
+            (rank >= 1 ? GameBalance.Get("doctor.angle_r1", 95f) : GameBalance.Get("doctor.angle_r0", 80f)));
         CharacterAttackEffect.Sector(this, transform.position, aim, radius, angle,
-            Mathf.Max(1, weapon.bulletDamage + 1), rank >= 5);
+            Mathf.Max(1, weapon.bulletDamage + GameBalance.GetInt("doctor.bonus_damage", 1)), rank >= 5);
     }
 
     public void FireNeedles(Vector2 aim)
@@ -421,7 +443,8 @@ public class CharacterCombat : MonoBehaviour
         int count = rank >= 2 ? 2 : 1;
         for (int i = 0; i < count; i++)
         {
-            float spread = count == 1 ? 0f : (i == 0 ? -5f : 5f);
+            float spreadAngle = GameBalance.Get("nurse.spread_angle", 5f);
+            float spread = count == 1 ? 0f : (i == 0 ? -spreadAngle : spreadAngle);
             Vector2 direction = Quaternion.Euler(0f, 0f, spread) * aim;
             weapon.SpawnBullet(direction, rank >= 3 ? 2 : 1, new Vector3(0.16f, 0.65f, 1f));
         }
@@ -429,15 +452,17 @@ public class CharacterCombat : MonoBehaviour
 
     public void DrugStream(Vector2 aim)
     {
-        float length = Mathf.Clamp(weapon.bulletSpeed, 7f, 16f);
-        CharacterAttackEffect.Beam(this, transform.position, aim, length, 0.85f,
-            Mathf.Max(1, weapon.bulletDamage), 0.22f);
+        float length = Mathf.Clamp(weapon.bulletSpeed, GameBalance.Get("nurse.beam_length_min", 7f),
+            GameBalance.Get("nurse.beam_length_max", 16f));
+        CharacterAttackEffect.Beam(this, transform.position, aim, length, GameBalance.Get("nurse.beam_width", 0.85f),
+            Mathf.Max(1, weapon.bulletDamage), GameBalance.Get("nurse.beam_duration", 0.22f));
     }
 
     public void ThrowAmpoule(Vector2 aim)
     {
-        Vector3 landing = transform.position + (Vector3)(aim * 4f);
-        float best = 8f * 8f;
+        Vector3 landing = transform.position + (Vector3)(aim * GameBalance.Get("pharmacist.fallback_distance", 4f));
+        float targetRange = GameBalance.Get("pharmacist.target_range", 8f);
+        float best = targetRange * targetRange;
         for (int i = 0; i < targets.Count; i++)
         {
             Enemy enemy = targets[i];
@@ -450,16 +475,18 @@ public class CharacterCombat : MonoBehaviour
 
     public void AmpouleImpact(Vector3 position)
     {
-        CharacterAttackEffect.Burst(this, position, 2.5f, Mathf.Max(1, weapon.bulletDamage + 1), rank >= 5);
+        CharacterAttackEffect.Burst(this, position, GameBalance.Get("pharmacist.blast_radius", 2.5f),
+            Mathf.Max(1, weapon.bulletDamage + GameBalance.GetInt("pharmacist.blast_damage_add", 1)), rank >= 5);
         if (rank < 3) return;
         medicinePools.RemoveAll(pool => pool == null || pool.retired);
-        while (medicinePools.Count >= 2)
+        while (medicinePools.Count >= Mathf.Max(1, GameBalance.GetInt("pharmacist.pool_max", 2)))
         {
             medicinePools[0].Retire();
             medicinePools.RemoveAt(0);
         }
-        medicinePools.Add(CharacterAttackEffect.Pool(this, position, 2.2f, 4f,
-            Mathf.Max(1, weapon.bulletDamage), 0.6f));
+        medicinePools.Add(CharacterAttackEffect.Pool(this, position, GameBalance.Get("pharmacist.pool_radius", 2.2f),
+            GameBalance.Get("pharmacist.pool_duration", 4f), Mathf.Max(1, weapon.bulletDamage),
+            GameBalance.Get("pharmacist.pool_tick", 0.6f)));
     }
 
     public void PerformSpecial()
@@ -467,7 +494,7 @@ public class CharacterCombat : MonoBehaviour
         if (role == CharacterRole.Nurse)
         {
             Vector2 aim = AimDirection();
-            Vector3 destination = transform.position + (Vector3)(aim * 6f);
+            Vector3 destination = transform.position + (Vector3)(aim * GameBalance.Get("nurse.missile_fallback_distance", 6f));
             if (targets.Count > 0)
             {
                 float best = float.MaxValue;
@@ -490,7 +517,8 @@ public class CharacterCombat : MonoBehaviour
             if (enemy == null || enemy.currentHP <= 0) continue;
             Vector3 viewport = camera == null ? Vector3.one * 0.5f : camera.WorldToViewportPoint(enemy.transform.position);
             if (viewport.z < 0f || viewport.x < 0f || viewport.x > 1f || viewport.y < 0f || viewport.y > 1f) continue;
-            if (role == CharacterRole.Doctor) enemy.ApplySlow(0.4f, 2.5f);
+            if (role == CharacterRole.Doctor) enemy.ApplySlow(GameBalance.Get("doctor.special_slow_mult", 0.4f),
+                GameBalance.Get("doctor.special_slow_duration", 2.5f));
             else enemy.TakeDamage(Mathf.Max(1, weapon.bulletDamage));
         }
         CharacterAttackEffect.Flash(this, transform.position,

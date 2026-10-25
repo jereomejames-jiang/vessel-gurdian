@@ -24,6 +24,11 @@ public class VesselNodeBoss : MonoBehaviour
 
     public void Awake()
     {
+        summonInterval = GameBalance.Get("boss.summon_interval", summonInterval);
+        chargeInterval = GameBalance.Get("boss.charge_interval", chargeInterval);
+        chargeWarning = GameBalance.Get("boss.charge_telegraph", chargeWarning);
+        chargeDuration = GameBalance.Get("boss.charge_duration", chargeDuration);
+        chargeSpeed = GameBalance.Get("boss.charge_speed", chargeSpeed);
         if (enemy == null) enemy = GetComponent<Enemy>();
         if (spriteRenderer == null) spriteRenderer = GetComponent<SpriteRenderer>();
         if (spawner == null) spawner = FindAnyObjectByType<EnemySpawner>();
@@ -58,7 +63,7 @@ public class VesselNodeBoss : MonoBehaviour
             if (controller != null) player = controller.transform;
         }
 
-        if (!halfHealthTriggered && enemy.currentHP <= enemy.maxHP * 0.5f)
+        if (!halfHealthTriggered && enemy.currentHP <= enemy.maxHP * GameBalance.Get("boss.reinforce_hp_percent", 0.5f))
         {
             halfHealthTriggered = true;
             SummonRupturedCells();
@@ -128,9 +133,9 @@ public class VesselNodeBoss : MonoBehaviour
     {
         if (spawner == null) spawner = FindAnyObjectByType<EnemySpawner>();
         if (spawner == null) return;
-        for (int i = 0; i < 2; i++)
+        for (int i = 0; i < GameBalance.GetInt("boss.summon_count", 2); i++)
         {
-            Vector2 offset = Random.insideUnitCircle * 1.2f;
+            Vector2 offset = Random.insideUnitCircle * GameBalance.Get("boss.summon_offset", 1.2f);
             spawner.SpawnSpecific(EnemyKind.MicroThrombus, transform.position + (Vector3)offset);
         }
     }
@@ -139,9 +144,9 @@ public class VesselNodeBoss : MonoBehaviour
     {
         if (spawner == null) spawner = FindAnyObjectByType<EnemySpawner>();
         if (spawner == null) return;
-        for (int i = 0; i < 2; i++)
+        for (int i = 0; i < GameBalance.GetInt("boss.reinforce_count", 2); i++)
         {
-            Vector2 offset = Random.insideUnitCircle * 1.5f;
+            Vector2 offset = Random.insideUnitCircle * GameBalance.Get("boss.reinforce_offset", 1.5f);
             spawner.SpawnSpecific(EnemyKind.RupturedCell, transform.position + (Vector3)offset);
         }
     }

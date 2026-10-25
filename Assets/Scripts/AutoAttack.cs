@@ -15,6 +15,10 @@ public class AutoAttack : MonoBehaviour
 
     void Start()
     {
+        attackInterval = GameBalance.Get("attack.interval", attackInterval);
+        bulletSpeed = GameBalance.Get("attack.bullet_speed", bulletSpeed);
+        bulletLifetime = GameBalance.Get("attack.bullet_lifetime", bulletLifetime);
+        bulletDamage = GameBalance.GetInt("attack.bullet_damage", bulletDamage);
         enemySpawner = FindAnyObjectByType<EnemySpawner>();
         characterCombat = GetComponent<CharacterCombat>();
         if (characterCombat == null) characterCombat = gameObject.AddComponent<CharacterCombat>();
@@ -94,7 +98,7 @@ public class AutoAttack : MonoBehaviour
 
     public void ReduceInterval(float amount)
     {
-        attackInterval = Mathf.Max(0.05f, attackInterval * (1f - amount));
+        attackInterval = Mathf.Max(GameBalance.Get("attack.interval_min", 0.05f), attackInterval * (1f - amount));
     }
 
     public void IncreaseBulletSpeed(float amount)

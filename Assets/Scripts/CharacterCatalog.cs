@@ -18,7 +18,7 @@ public static class CharacterCatalog
     };
 
     public static CharacterRole SelectedRole => (CharacterRole)Mathf.Clamp(PlayerPrefs.GetInt(PreferenceKey, 0), 0, 2);
-    public static int RankForLevel(int level) => Mathf.Clamp(level / 3, 0, MaxRank);
+    public static int RankForLevel(int level) => Mathf.Clamp(level / Mathf.Max(1, GameBalance.GetInt("character.rank_per_levels", 3)), 0, GameBalance.GetInt("character.rank_max", MaxRank));
     public static string Name(CharacterRole role) => Names[Mathf.Clamp((int)role, 0, 2)];
     public static string Route(CharacterRole role, int rank) => Routes[Mathf.Clamp((int)role, 0, 2)][Mathf.Clamp(rank, 0, MaxRank)];
 }

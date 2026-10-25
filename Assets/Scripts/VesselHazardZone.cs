@@ -16,14 +16,15 @@ public class VesselHazardZone : MonoBehaviour
     public static Sprite hazardSprite;
 
     public static VesselHazardZone Create(Vector3 position, float radius, int damageValue,
-        float slow, GameObject ownerObject, float duration = 9999f)
+        float slow, GameObject ownerObject, float duration = 9999f, float damageIntervalValue = 1f)
     {
         GameObject zoneObject = new GameObject("VesselHazardZone");
         zoneObject.transform.position = position;
         VesselHazardZone zone = zoneObject.AddComponent<VesselHazardZone>();
         zone.remaining = duration;
+        zone.damageInterval = damageIntervalValue;
         zone.damage = Mathf.Max(0, damageValue);
-        zone.slowMultiplier = Mathf.Clamp(slow, 0.1f, 1f);
+        zone.slowMultiplier = Mathf.Clamp(slow, GameBalance.Get("player.slow_zone_min", 0.1f), 1f);
         zone.owner = ownerObject == null ? null : ownerObject.transform;
         zone.destroyWithOwner = ownerObject != null;
         zone.transform.localScale = Vector3.one * Mathf.Max(0.2f, radius * 2f);

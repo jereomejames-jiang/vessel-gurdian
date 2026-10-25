@@ -38,6 +38,8 @@ public class PlayerController : MonoBehaviour
     void Awake()
     {
         Application.runInBackground = true;
+        moveSpeed = GameBalance.Get("player.move_speed", moveSpeed);
+        turnSpeed = GameBalance.Get("player.rotate_speed", turnSpeed);
         if (rb == null) rb = GetComponent<Rigidbody2D>();
         rb.interpolation = RigidbodyInterpolation2D.Interpolate;
         rb.rotation = headingAngle - 90f;
@@ -126,14 +128,14 @@ public class PlayerController : MonoBehaviour
 
     public void AddSlowZone(float multiplier)
     {
-        activeSlowZoneMultipliers.Add(Mathf.Clamp(multiplier, 0.1f, 1f));
+        activeSlowZoneMultipliers.Add(Mathf.Clamp(multiplier, GameBalance.Get("player.slow_zone_min", 0.1f), 1f));
         slowZoneCount = activeSlowZoneMultipliers.Count;
         RecalculateSlowZoneMultiplier();
     }
 
     public void RemoveSlowZone(float multiplier)
     {
-        float value = Mathf.Clamp(multiplier, 0.1f, 1f);
+        float value = Mathf.Clamp(multiplier, GameBalance.Get("player.slow_zone_min", 0.1f), 1f);
         for (int i = 0; i < activeSlowZoneMultipliers.Count; i++)
         {
             if (Mathf.Abs(activeSlowZoneMultipliers[i] - value) < 0.01f)

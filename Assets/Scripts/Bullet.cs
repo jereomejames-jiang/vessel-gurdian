@@ -10,6 +10,11 @@ public class Bullet : MonoBehaviour
     public CharacterCombat source;
     [System.NonSerialized] public HashSet<Enemy> hitEnemies = new HashSet<Enemy>();
 
+    void Awake()
+    {
+        knockbackForce = GameBalance.Get("attack.bullet_knockback", knockbackForce);
+    }
+
     void OnTriggerEnter2D(Collider2D other)
     {
         if (hasHit || Time.timeScale <= 0f) return;

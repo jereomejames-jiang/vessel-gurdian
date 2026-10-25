@@ -33,6 +33,10 @@ public class CameraFollow : MonoBehaviour
     void OnEnable() { initialized = false; }
     void Start()
     {
+        orthographicSize = GameBalance.Get("camera.ortho_base", orthographicSize);
+        levelViewStep = GameBalance.Get("camera.ortho_per_level", levelViewStep);
+        maxOrthographicSize = GameBalance.Get("camera.ortho_max", maxOrthographicSize);
+        lookAheadDistance = GameBalance.Get("camera.look_ahead", lookAheadDistance);
         playerStats = FindAnyObjectByType<PlayerStats>();
         if (playerStats != null)
         {

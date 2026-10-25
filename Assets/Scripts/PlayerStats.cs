@@ -18,8 +18,6 @@ public class PlayerStats : MonoBehaviour
     float recoveryTimer;
     float lastDamageTime;
     float membraneRegenTimer;
-    const float MembraneRegenCooldown = 5f;
-    const float MembraneRegenInterval = 1f;
 
     public event Action<int, int> OnHPChanged;
     public event Action<int, int, int> OnXPChanged;
@@ -28,6 +26,10 @@ public class PlayerStats : MonoBehaviour
 
     void Awake()
     {
+        maxHP = GameBalance.GetInt("player.max_hp", maxHP);
+        xpPerLevel = GameBalance.GetInt("xp.base_require", xpPerLevel);
+        xpGrowth = GameBalance.Get("xp.growth", xpGrowth);
+        recoveryInterval = GameBalance.Get("skill.stent.shield_heal_interval", recoveryInterval);
         currentHP = maxHP;
         currentXP = 0;
         level = Mathf.Max(1, level);
@@ -47,16 +49,16 @@ public class PlayerStats : MonoBehaviour
             if (recoveryTimer <= 0f)
             {
                 recoveryTimer = recoveryInterval;
-                if (currentHP < maxHP) { currentHP = Mathf.Min(maxHP, currentHP + 1); OnHPChanged?.Invoke(currentHP, maxHP); }
+                if (currentHP < maxHP) { currentHP = Mathf.Min(maxHP, currentHP + GameBalance.GetInt("skill.stent.shield_heal_amount", 1)); OnHPChanged?.Invoke(currentHP, maxHP); }
             }
         }
-        if (membraneRegen && currentHP < maxHP && Time.time - lastDamageTime >= MembraneRegenCooldown)
+        if (membraneRegen && currentHP < maxHP && Time.time - lastDamageTime >= GameBalance.Get("skill.stent.regen_delay", 5f))
         {
             membraneRegenTimer -= Time.deltaTime;
             if (membraneRegenTimer <= 0f)
             {
-                membraneRegenTimer = MembraneRegenInterval;
-                int regenAmount = Mathf.Max(1, Mathf.CeilToInt(maxHP * 0.035f));
+                membraneRegenTimer = GameBalance.Get("skill.stent.regen_tick", 1f);
+                int regenAmount = Mathf.Max(1, Mathf.CeilToInt(maxHP * GameBalance.Get("skill.stent.regen_percent", 0.035f)));
                 currentHP = Mathf.Min(maxHP, currentHP + regenAmount);
                 OnHPChanged?.Invoke(currentHP, maxHP);
             }
@@ -95,7 +97,7 @@ public class PlayerStats : MonoBehaviour
 
         lastDamageTime = Time.time;
         membraneRegenTimer = 0f;
-        int reduced = Mathf.Max(1, Mathf.CeilToInt(amount * Mathf.Clamp(incomingDamageMultiplier, 0.05f, 1f)));
+        int reduced = Mathf.Max(1, Mathf.CeilToInt(amount * Mathf.Clamp(incomingDamageMultiplier, GameBalance.Get("player.damage_taken_min_mult", 0.05f), 1f)));
         if (temporaryShield > 0)
         {
             int absorbed = Mathf.Min(temporaryShield, reduced);
@@ -137,10 +139,10 @@ public class PlayerStats : MonoBehaviour
 
     public void ConfigureMembraneStent(int level)
     {
-        incomingDamageMultiplier = level >= 3 ? 0.65f : (level == 2 ? 0.75f : 0.85f);
+        incomingDamageMultiplier = level >= 3 ? GameBalance.Get("skill.stent.mult_lv3", 0.65f) : (level == 2 ? GameBalance.Get("skill.stent.mult_lv2", 0.75f) : GameBalance.Get("skill.stent.mult_lv1", 0.85f));
         if (level >= 3)
         {
-            temporaryShield = Mathf.Max(temporaryShield, 3);
+            temporaryShield = Mathf.Max(temporaryShield, GameBalance.GetInt("skill.stent.shield", 3));
             membraneRegen = true;
             lastDamageTime = Time.time;
         }

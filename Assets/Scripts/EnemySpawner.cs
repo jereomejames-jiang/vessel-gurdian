@@ -28,6 +28,14 @@ public class EnemySpawner : MonoBehaviour
 
     public void Start()
     {
+        spawnRadius = GameBalance.Get("spawn.radius", spawnRadius);
+        bossTime = GameBalance.Get("spawn.boss_time", bossTime);
+        cleanupInterval = GameBalance.Get("spawn.cleanup_interval", cleanupInterval);
+        spikeClusterSize = GameBalance.GetInt("spawn.spike_batch", spikeClusterSize);
+        surgeInterval = GameBalance.Get("spawn.surge_interval", surgeInterval);
+        surgeTimer = GameBalance.Get("spawn.surge_first", surgeTimer);
+        packSizeMin = GameBalance.GetInt("spawn.batch_min", packSizeMin);
+        packSizeMax = GameBalance.GetInt("spawn.batch_max", packSizeMax);
         if (player == null)
         {
             PlayerController controller = FindAnyObjectByType<PlayerController>();
@@ -39,9 +47,10 @@ public class EnemySpawner : MonoBehaviour
 
         // Keep the live object count bounded. Difficulty comes from cadence and stats.
         // More bodies create the mowing-game rhythm while the registry keeps searches cheap.
-        maxActiveEnemies = 74 + stageIndex * 16;
+        maxActiveEnemies = GameBalance.GetInt("spawn.max_active_base", 74) +
+            stageIndex * GameBalance.GetInt("spawn.max_active_per_stage", 16);
         cleanupTimer = cleanupInterval;
-        spawnTimer = 0.6f;
+        spawnTimer = GameBalance.Get("spawn.first_delay", 0.6f);
     }
 
     public void Update()
@@ -81,9 +90,10 @@ public class EnemySpawner : MonoBehaviour
 
     public float GetSpawnInterval()
     {
-        float levelPressure = (stageIndex - 1) * 0.18f;
-        float timelinePressure = Mathf.Clamp01(stageElapsed / 300f) * 0.6f;
-        return Mathf.Max(0.4f, spawnInterval - levelPressure - timelinePressure);
+        float levelPressure = (stageIndex - 1) * GameBalance.Get("spawn.interval_stage_factor", 0.18f);
+        float timelinePressure = Mathf.Clamp01(stageElapsed / GameBalance.Get("spawn.interval_ramp_time", 300f)) *
+            GameBalance.Get("spawn.interval_time_factor", 0.6f);
+        return Mathf.Max(GameBalance.Get("spawn.interval_min", 0.4f), spawnInterval - levelPressure - timelinePressure);
     }
 
     public void SpawnEnemy()
@@ -94,7 +104,7 @@ public class EnemySpawner : MonoBehaviour
         int packSize = kind == EnemyKind.SpikeSoldier ? spikeClusterSize : Random.Range(packSizeMin, packSizeMax + 1);
         for (int i = 0; i < packSize && trackedEnemies.Count < maxActiveEnemies; i++)
         {
-            Vector2 offset = i == 0 ? Vector2.zero : Random.insideUnitCircle * 1.2f;
+            Vector2 offset = i == 0 ? Vector2.zero : Random.insideUnitCircle * GameBalance.Get("spawn.batch_offset", 1.2f);
             SpawnSpecific(kind, position + (Vector3)offset);
         }
     }
@@ -103,12 +113,14 @@ public class EnemySpawner : MonoBehaviour
     {
         if (player == null) return;
         // A directional flood from one side — the classic survivor-genre pressure spike.
-        int count = Random.Range(8, 15 + stageIndex * 2);
+        int count = Random.Range(GameBalance.GetInt("spawn.surge_count_min", 8),
+            GameBalance.GetInt("spawn.surge_count_base", 15) + stageIndex * GameBalance.GetInt("spawn.surge_count_per_stage", 2));
         float baseAngle = Random.Range(0f, Mathf.PI * 2f);
         for (int i = 0; i < count && trackedEnemies.Count < maxActiveEnemies; i++)
         {
-            float angle = baseAngle + Random.Range(-0.55f, 0.55f);
-            float radius = spawnRadius + Random.Range(0f, 3.5f);
+            float surgeAngle = GameBalance.Get("spawn.surge_angle", 0.55f);
+            float angle = baseAngle + Random.Range(-surgeAngle, surgeAngle);
+            float radius = spawnRadius + Random.Range(0f, GameBalance.Get("spawn.surge_distance_max", 3.5f));
             Vector3 position = player.position + new Vector3(Mathf.Cos(angle), Mathf.Sin(angle), 0f) * radius;
             SpawnSpecific(ChooseKind(), position);
         }
@@ -116,52 +128,48 @@ public class EnemySpawner : MonoBehaviour
 
     public EnemyKind ChooseKind()
     {
+        if (stageElapsed >= bossTime)
+            return ChooseWeightedKind("spawn.comp.post_boss.", Random.value, 100, 0, 0, 0, 0);
+
+        float firstEnd = GameBalance.Get("spawn.comp.s" + stageIndex + "_t1", stageIndex == 1 ? 60f : 90f);
+        float secondEnd = GameBalance.Get("spawn.comp.s" + stageIndex + "_t2", stageIndex == 1 ? 150f : 180f);
+        int phase = stageElapsed < firstEnd ? 1 : (stageElapsed < secondEnd ? 2 : 3);
+        string prefix = "spawn.comp.s" + stageIndex + "_p" + phase + ".";
         float roll = Random.value;
+        switch (stageIndex * 10 + phase)
+        {
+            case 11: return ChooseWeightedKind(prefix, roll, 100, 0, 0, 0, 0);
+            case 12: return ChooseWeightedKind(prefix, roll, 70, 30, 0, 0, 0);
+            case 13: return ChooseWeightedKind(prefix, roll, 32, 20, 21, 13, 14);
+            case 21: return ChooseWeightedKind(prefix, roll, 60, 40, 0, 0, 0);
+            case 22: return ChooseWeightedKind(prefix, roll, 35, 37, 0, 28, 0);
+            case 23: return ChooseWeightedKind(prefix, roll, 20, 25, 14, 25, 16);
+            case 31: return ChooseWeightedKind(prefix, roll, 45, 55, 0, 0, 0);
+            case 32: return ChooseWeightedKind(prefix, roll, 25, 0, 37, 38, 0);
+            default: return ChooseWeightedKind(prefix, roll, 0, 18, 24, 26, 32);
+        }
+    }
 
-        if (stageIndex == 1)
+    public EnemyKind ChooseWeightedKind(string prefix, float roll, int cell, int spike, int ruptured, int thrombus, int bleeding)
+    {
+        float[] weights = {
+            GameBalance.Get(prefix + "cell", cell), GameBalance.Get(prefix + "spike", spike),
+            GameBalance.Get(prefix + "ruptured", ruptured), GameBalance.Get(prefix + "thrombus", thrombus),
+            GameBalance.Get(prefix + "bleeding", bleeding)
+        };
+        EnemyKind[] kinds = { EnemyKind.CellShadow, EnemyKind.SpikeSoldier, EnemyKind.RupturedCell,
+            EnemyKind.MicroThrombus, EnemyKind.BleedingGap };
+        float total = 0f;
+        for (int i = 0; i < weights.Length; i++) total += Mathf.Max(0f, weights[i]);
+        if (total <= 0f) return EnemyKind.CellShadow;
+        float cumulative = 0f;
+        for (int i = 0; i < weights.Length; i++)
         {
-            if (stageElapsed < 60f) return EnemyKind.CellShadow;
-            if (stageElapsed < 150f)
-                return roll < 0.7f ? EnemyKind.CellShadow : EnemyKind.SpikeSoldier;
-            if (stageElapsed < bossTime)
-            {
-                if (roll < 0.32f) return EnemyKind.CellShadow;
-                if (roll < 0.52f) return EnemyKind.SpikeSoldier;
-                if (roll < 0.73f) return EnemyKind.RupturedCell;
-                if (roll < 0.86f) return EnemyKind.MicroThrombus;
-                return EnemyKind.BleedingGap;
-            }
+            cumulative += Mathf.Max(0f, weights[i]);
+            if (roll < cumulative / total) return kinds[i];
         }
-        else if (stageIndex == 2)
-        {
-            if (stageElapsed < 90f)
-                return roll < 0.6f ? EnemyKind.CellShadow : EnemyKind.SpikeSoldier;
-            if (stageElapsed < 180f)
-                return roll < 0.35f ? EnemyKind.CellShadow : (roll < 0.72f ? EnemyKind.SpikeSoldier : EnemyKind.MicroThrombus);
-            if (stageElapsed < bossTime)
-            {
-                if (roll < 0.2f) return EnemyKind.CellShadow;
-                if (roll < 0.45f) return EnemyKind.SpikeSoldier;
-                if (roll < 0.7f) return EnemyKind.MicroThrombus;
-                if (roll < 0.84f) return EnemyKind.RupturedCell;
-                return EnemyKind.BleedingGap;
-            }
-        }
-        else
-        {
-            if (stageElapsed < 90f)
-                return roll < 0.45f ? EnemyKind.CellShadow : EnemyKind.SpikeSoldier;
-            if (stageElapsed < 180f)
-                return roll < 0.25f ? EnemyKind.CellShadow : (roll < 0.62f ? EnemyKind.RupturedCell : EnemyKind.MicroThrombus);
-            if (stageElapsed < bossTime)
-            {
-                if (roll < 0.18f) return EnemyKind.SpikeSoldier;
-                if (roll < 0.42f) return EnemyKind.RupturedCell;
-                if (roll < 0.68f) return EnemyKind.MicroThrombus;
-                return EnemyKind.BleedingGap;
-            }
-        }
-
+        for (int i = weights.Length - 1; i >= 0; i--)
+            if (weights[i] > 0f) return kinds[i];
         return EnemyKind.CellShadow;
     }
 
@@ -203,17 +211,19 @@ public class EnemySpawner : MonoBehaviour
     {
         if (enemy == null) return;
         float timePressure = Mathf.Clamp01(stageElapsed / bossTime);
-        float stagePressure = (stageIndex - 1) * 0.12f;
-        float hpScale = 1f + timePressure * 0.4f + stagePressure;
+        float stagePressure = (stageIndex - 1) * GameBalance.Get("spawn.stage_pressure", 0.12f);
+        float hpScale = 1f + timePressure * GameBalance.Get("spawn.hp_time_factor", 0.4f) + stagePressure;
         enemy.maxHP = Mathf.Max(1, Mathf.CeilToInt(enemy.maxHP * hpScale));
         enemy.currentHP = enemy.maxHP;
-        enemy.moveSpeed *= 1f + timePressure * 0.1f + stagePressure * 0.15f;
-        if (timePressure > 0.75f && enemy.contactDamage >= 2)
-            enemy.contactDamage += stageIndex >= 3 ? 1 : 0;
+        enemy.moveSpeed *= 1f + timePressure * GameBalance.Get("spawn.speed_time_factor", 0.1f) +
+            stagePressure * GameBalance.Get("spawn.speed_stage_factor", 0.15f);
+        if (timePressure > GameBalance.Get("spawn.late_damage_threshold", 0.75f) && enemy.contactDamage >= 2)
+            enemy.contactDamage += stageIndex >= 3 ? GameBalance.GetInt("spawn.late_damage_stage3_add", 1) : 0;
 
         // Keep early upgrades exciting, then taper orb value as the five-minute run advances.
-        float lateGame = Mathf.Clamp01((stageElapsed - 120f) / 180f);
-        float experienceMultiplier = Mathf.Lerp(1f, 0.65f, lateGame);
+        float lateGame = Mathf.Clamp01((stageElapsed - GameBalance.Get("spawn.xp_decay_start", 120f)) /
+            GameBalance.Get("spawn.xp_decay_duration", 180f));
+        float experienceMultiplier = Mathf.Lerp(1f, GameBalance.Get("spawn.xp_decay_min", 0.65f), lateGame);
         enemy.xpValue = Mathf.Max(1, Mathf.RoundToInt(enemy.xpValue * experienceMultiplier));
     }
 

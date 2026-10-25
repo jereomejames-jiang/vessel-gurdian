@@ -12,6 +12,8 @@ public class ExperienceOrb : MonoBehaviour
 
     void Start()
     {
+        magnetRange = GameBalance.Get("xp.magnet_range", magnetRange);
+        magnetSpeed = GameBalance.Get("xp.magnet_speed", magnetSpeed);
         ApplySuctionTubeBonus();
         SpriteRenderer renderer = GetComponent<SpriteRenderer>();
         if (renderer == null) return;
@@ -43,7 +45,7 @@ public class ExperienceOrb : MonoBehaviour
             transform.position = Vector3.MoveTowards(transform.position, player.position, magnetSpeed * Time.deltaTime);
         }
 
-        if (distance <= 0.35f)
+        if (distance <= GameBalance.Get("xp.pickup_distance", 0.35f))
         {
             Collect();
         }
@@ -83,7 +85,8 @@ public class ExperienceOrb : MonoBehaviour
         if (combat == null) return;
         int level = combat.GetVesselSkillLevel(UpgradeType.SuctionTube);
         if (level <= 0) return;
-        float bonus = level >= 3 ? 0.30f : (level == 2 ? 0.20f : 0.10f);
-        magnetRange *= (1f + bonus);
+        float mult = level >= 3 ? GameBalance.Get("skill.tube.magnet_lv3", 1.3f)
+            : (level == 2 ? GameBalance.Get("skill.tube.magnet_lv2", 1.2f) : GameBalance.Get("skill.tube.magnet_lv1", 1.1f));
+        magnetRange *= mult;
     }
 }

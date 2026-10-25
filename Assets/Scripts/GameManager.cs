@@ -29,6 +29,7 @@ public class GameManager : MonoBehaviour
     {
         if (Instance != null && Instance != this) { Destroy(gameObject); return; }
         Instance = this;
+        gameDuration = GameBalance.Get("game.duration", gameDuration);
 #if !UNITY_WEBGL
         Screen.SetResolution(1920, 1080, FullScreenMode.MaximizedWindow);
 #endif
@@ -51,7 +52,8 @@ public class GameManager : MonoBehaviour
         levelUpManager = FindAnyObjectByType<LevelUpManager>();
         EnemySpawner spawner = FindAnyObjectByType<EnemySpawner>();
         if (spawner != null) ApplyStageTheme(spawner);
-        if (spawner != null) spawner.spawnInterval = Mathf.Max(0.65f, 1.15f - (selectedLevel - 1) * 0.15f);
+        if (spawner != null) spawner.spawnInterval = selectedLevel == 1 ? GameBalance.Get("game.spawn_interval_s1", 1.15f) :
+            (selectedLevel == 2 ? GameBalance.Get("game.spawn_interval_s2", 1f) : GameBalance.Get("game.spawn_interval_s3", 0.85f));
         if (levelUpManager != null) levelUpManager.OnUpgradeApplied += HandleUpgradeApplied;
         if (playerStats != null)
         {
@@ -64,6 +66,7 @@ public class GameManager : MonoBehaviour
 
     void Update()
     {
+        if (Input.GetKeyDown(KeyCode.F8)) GameBalance.Reload();
         if (gameEnded || Time.timeScale <= 0f) return;
         elapsedTime = Mathf.Min(gameDuration, elapsedTime + Time.deltaTime);
         if (elapsedTime >= gameDuration) EndGame();
@@ -111,7 +114,7 @@ public class GameManager : MonoBehaviour
     public IEnumerator BossVictoryRoutine()
     {
         // Brief realtime pause so the boss death reads before the result panel.
-        yield return new WaitForSecondsRealtime(1.5f);
+        yield return new WaitForSecondsRealtime(GameBalance.Get("game.victory_delay", 1.5f));
         if (!gameEnded) FinishGame(true);
     }
 
