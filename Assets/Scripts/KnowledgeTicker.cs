@@ -158,7 +158,8 @@ public class KnowledgeTicker : MonoBehaviour
         if (plate != null) return;
         // Migrate the previous ticker view if an existing object was explicitly assigned.
         if (root != null) { root.SetActive(false); Destroy(root); }
-        displayFont = Font.CreateDynamicFontFromOSFont(new[] { "Microsoft YaHei", "SimHei", "Arial" }, 24);
+        // WebGL 无系统字体，统一使用随包分发的 simhei
+        displayFont = RuntimeFont.Get();
         root = new GameObject("KnowledgeTicker", typeof(RectTransform), typeof(CanvasGroup), typeof(CanvasRenderer));
         root.transform.SetParent(canvas.transform, false);
         root.transform.SetAsFirstSibling();
@@ -245,6 +246,6 @@ public class KnowledgeTicker : MonoBehaviour
     void OnDestroy()
     {
         if (Instance == this) Instance = null;
-        if (displayFont != null) Destroy(displayFont);
+        // displayFont 是共享资源（RuntimeFont），不能销毁
     }
 }

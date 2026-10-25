@@ -42,7 +42,8 @@ public class MainMenuUI : MonoBehaviour
         selectedLevel = Mathf.Clamp(PlayerPrefs.GetInt("VesselGuard.SelectedLevel", 1), 1, 3);
         selectedCharacter = Mathf.Clamp(PlayerPrefs.GetInt(CharacterCatalog.PreferenceKey, 0), 0, 2);
 
-        displayFont = Font.CreateDynamicFontFromOSFont(new[] { "Microsoft YaHei", "SimHei", "Arial" }, 24);
+        // WebGL 无系统字体，统一使用随包分发的 simhei
+        displayFont = RuntimeFont.Get();
         if (displayFont != null)
         {
             foreach (Text label in GetComponentsInChildren<Text>(true)) label.font = displayFont;
@@ -400,7 +401,7 @@ public class MainMenuUI : MonoBehaviour
         GameObject obj = new GameObject(objectName, typeof(RectTransform), typeof(Text));
         obj.transform.SetParent(parent, false);
         Text text = obj.GetComponent<Text>();
-        text.font = displayFont == null ? Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf") : displayFont;
+        text.font = displayFont == null ? RuntimeFont.Get() : displayFont;
         text.text = value;
         text.fontSize = fontSize;
         text.alignment = alignment;
@@ -466,7 +467,7 @@ public class MainMenuUI : MonoBehaviour
 
     void OnDestroy()
     {
-        if (displayFont != null) Destroy(displayFont);
+        // displayFont 是共享资源（RuntimeFont），不能销毁
     }
 }
 // codex menu wired

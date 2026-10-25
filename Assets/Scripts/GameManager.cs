@@ -29,7 +29,9 @@ public class GameManager : MonoBehaviour
     {
         if (Instance != null && Instance != this) { Destroy(gameObject); return; }
         Instance = this;
+#if !UNITY_WEBGL
         Screen.SetResolution(1920, 1080, FullScreenMode.MaximizedWindow);
+#endif
         if (skillCodexManager == null) skillCodexManager = GetComponent<SkillCodexManager>();
         if (skillCodexManager == null) skillCodexManager = gameObject.AddComponent<SkillCodexManager>();
         skillCodexManager.isGameplay = true;

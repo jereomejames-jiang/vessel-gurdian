@@ -137,7 +137,8 @@ public class SkillCodexManager : MonoBehaviour
         EnsureCards();
         if (canvas == null) canvas = FindAnyObjectByType<Canvas>();
         if (canvas == null || codexPanel != null) return;
-        displayFont = Font.CreateDynamicFontFromOSFont(new[] { "Microsoft YaHei", "SimHei", "Arial" }, 24);
+        // WebGL 无系统字体，统一使用随包分发的 simhei
+        displayFont = RuntimeFont.Get();
         if (isGameplay && codexButton == null)
         {
             codexButton = MakeButton(canvas.transform, "CodexButton", "血管图鉴", new Vector2(-130f, -110f), new Vector2(190f, 50f));
@@ -275,6 +276,6 @@ public class SkillCodexManager : MonoBehaviour
     void OnDestroy()
     {
         if (Instance == this) Instance = null;
-        if (displayFont != null) Destroy(displayFont);
+        // displayFont 是共享资源（RuntimeFont），不能销毁
     }
 }

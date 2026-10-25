@@ -61,9 +61,10 @@ public class UIManager : MonoBehaviour
         if (GameOverPanel != null) GameOverPanel.SetActive(false);
         if (RestartButton != null) RestartButton.onClick.AddListener(() => { if (gameManager != null) gameManager.RestartGame(); });
 
-        // The Windows prototype uses an installed CJK font for Chinese labels.
-        displayFont = Font.CreateDynamicFontFromOSFont(new[] { "Microsoft YaHei", "SimHei", "Arial" }, 24);
-        foreach (Text label in canvas.GetComponentsInChildren<Text>(true)) label.font = displayFont;
+        // WebGL 无系统字体，统一使用随包分发的 simhei
+        displayFont = RuntimeFont.Get();
+        if (displayFont != null)
+            foreach (Text label in canvas.GetComponentsInChildren<Text>(true)) label.font = displayFont;
         EnsureVictoryView();
         EnsureSurvivorHud();
         EnsurePauseView();
@@ -234,29 +235,13 @@ public class UIManager : MonoBehaviour
             }
 
             UpgradeOption option = choices[i];
-            Text label = button.GetComponentInChildren<Text>();
-            if (label != null)
-            {
-                label.text = FormatUpgradeCardText(option);
-                label.fontSize = 19;
-                label.lineSpacing = 1.35f;
-                label.alignment = TextAnchor.UpperCenter;
-                label.horizontalOverflow = HorizontalWrapMode.Wrap;
-                label.verticalOverflow = VerticalWrapMode.Overflow;
-                label.supportRichText = true;
-                RectTransform labelRect = label.rectTransform;
-                labelRect.anchorMin = new Vector2(0f, 0f);
-                labelRect.anchorMax = new Vector2(1f, 0f);
-                labelRect.pivot = new Vector2(0.5f, 0f);
-                labelRect.offsetMin = new Vector2(14f, 16f);
-                labelRect.offsetMax = new Vector2(-14f, 168f);
-                // Subtle outline for anti-aliasing and readability.
-                Outline labelOutline = label.GetComponent<Outline>();
-                if (labelOutline == null) labelOutline = label.gameObject.AddComponent<Outline>();
-                labelOutline.effectColor = new Color(0f, 0f, 0f, 0.35f);
-                labelOutline.effectDistance = new Vector2(0.5f, 0.5f);
-                labelOutline.useGraphicAlpha = false;
-            }
+            EnsureCardTexts(button, out Text cardTitle, out Text cardLevel, out Text cardDesc);
+            cardTitle.text = option.displayName;
+            cardLevel.text = CardLevelLine(option);
+            cardDesc.text = CardShortText(option);
+            cardTitle.transform.SetAsLastSibling();
+            cardLevel.transform.SetAsLastSibling();
+            cardDesc.transform.SetAsLastSibling();
             Image cardImage = button.GetComponent<Image>();
             if (cardImage != null)
             {
@@ -269,20 +254,62 @@ public class UIManager : MonoBehaviour
         }
     }
 
-    public string FormatUpgradeCardText(UpgradeOption option)
+    // Unicode 模式字体不支持 <size>/<b> 富文本覆盖，标题/等级/描述必须用独立 Text
+    public void EnsureCardTexts(Button button, out Text title, out Text level, out Text desc)
     {
-        if (option == null) return "";
+        // 场景自带的旧 Label 状态不可信，停用后统一走运行时创建路径
+        foreach (Transform child in button.transform)
+            if (child.name == "Label") child.gameObject.SetActive(false);
+
+        title = EnsureCardText(button, "CardTitle", 24, Color.white, TextAnchor.MiddleCenter, new Vector2(0f, -210f), new Vector2(272f, 40f));
+        level = EnsureCardText(button, "CardLevel", 18, new Color(0.49f, 0.78f, 0.91f, 1f), TextAnchor.MiddleCenter, new Vector2(0f, -252f), new Vector2(272f, 30f));
+        desc = EnsureCardText(button, "CardDesc", 17, new Color(0.85f, 0.91f, 0.96f, 1f), TextAnchor.UpperCenter, new Vector2(0f, -316f), new Vector2(272f, 84f));
+    }
+
+    public Text EnsureCardText(Button button, string name, int fontSize, Color color, TextAnchor alignment, Vector2 topCenteredPosition, Vector2 size)
+    {
+        Transform existing = button.transform.Find(name);
+        Text text = existing == null ? null : existing.GetComponent<Text>();
+        if (text == null)
+        {
+            text = CreateText(button.transform, name, "", fontSize, alignment, Vector2.zero, size);
+            text.horizontalOverflow = HorizontalWrapMode.Wrap;
+            text.verticalOverflow = VerticalWrapMode.Overflow;
+            Outline outline = text.gameObject.AddComponent<Outline>();
+            outline.effectColor = new Color(0f, 0f, 0f, 0.35f);
+            outline.effectDistance = new Vector2(0.5f, 0.5f);
+            outline.useGraphicAlpha = false;
+        }
+        text.gameObject.SetActive(true);
+        text.font = displayFont == null ? RuntimeFont.Get() : displayFont;
+        if (text.font == null)
+            Debug.LogError("VesselGuard: 升级卡文字缺少字体，RuntimeFont.Get() 返回 null");
+        text.fontSize = fontSize;
+        text.color = color;
+        text.alignment = alignment;
+        RectTransform rect = text.rectTransform;
+        rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 1f);
+        rect.pivot = new Vector2(0.5f, 0.5f);
+        rect.sizeDelta = size;
+        rect.anchoredPosition = topCenteredPosition;
+        return text;
+    }
+
+    public string CardLevelLine(UpgradeOption option)
+    {
         if (playerSkillCollection == null) playerSkillCollection = FindAnyObjectByType<PlayerSkillCollection>();
         int current = playerSkillCollection == null ? 0 : playerSkillCollection.GetLevel(option.type);
-        int next = Mathf.Clamp(current + 1, 1, 3);
-        string levelLine = current <= 0 ? "Lv 1" : (current >= 3 ? "Lv 3  MAX" : "Lv " + current + " → " + next);
+        if (current <= 0) return "Lv 1";
+        if (current >= 3) return "Lv 3  MAX";
+        return "Lv " + current + " → " + Mathf.Clamp(current + 1, 1, 3);
+    }
+
+    public string CardShortText(UpgradeOption option)
+    {
         string shortText = VesselSkillCatalog.IsVesselSkill(option.type)
             ? VesselSkillCatalog.ShortDescriptionFor(option.type)
             : option.description;
-        if (string.IsNullOrEmpty(shortText)) shortText = "战斗强化";
-        return "<b><size=24>" + option.displayName + "</size></b>\n" +
-            "<size=18><color=#7EC8E8>" + levelLine + "</color></size>\n" +
-            "<size=17><color=#D8E8F4>" + shortText + "</color></size>";
+        return string.IsNullOrEmpty(shortText) ? "战斗强化" : shortText;
     }
 
     public void AttachOptionIcon(Button button, Sprite sprite)
@@ -725,7 +752,7 @@ public class UIManager : MonoBehaviour
         GameObject obj = new GameObject(objectName, typeof(RectTransform), typeof(Text));
         obj.transform.SetParent(parent, false);
         Text text = obj.GetComponent<Text>();
-        text.font = displayFont == null ? Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf") : displayFont;
+        text.font = displayFont == null ? RuntimeFont.Get() : displayFont;
         text.text = value;
         text.fontSize = fontSize;
         text.alignment = alignment;
@@ -739,7 +766,7 @@ public class UIManager : MonoBehaviour
         return text;
     }
 
-    void OnDestroy() { if (displayFont != null) Destroy(displayFont); }
+    // displayFont 是共享资源（RuntimeFont），不能销毁
 
     public string FormatTime(float seconds)
     {

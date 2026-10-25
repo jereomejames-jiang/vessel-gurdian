@@ -30,7 +30,8 @@ public class CardRevealUI : MonoBehaviour
     void Awake()
     {
         Instance = this;
-        displayFont = Font.CreateDynamicFontFromOSFont(new[] { "Microsoft YaHei", "SimHei", "Arial" }, 24);
+        // WebGL 无系统字体，统一使用随包分发的 simhei
+        displayFont = RuntimeFont.Get();
         if (revealPanel != null && displayFont != null)
             foreach (Text label in revealPanel.GetComponentsInChildren<Text>(true)) label.font = displayFont;
         EnsureCardRect();
@@ -258,6 +259,6 @@ public class CardRevealUI : MonoBehaviour
     void OnDestroy()
     {
         if (Instance == this) Instance = null;
-        if (displayFont != null) Destroy(displayFont);
+        // displayFont 是共享资源（RuntimeFont），不能销毁
     }
 }
