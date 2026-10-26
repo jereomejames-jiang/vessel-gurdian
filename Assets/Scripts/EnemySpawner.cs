@@ -198,6 +198,9 @@ public class EnemySpawner : MonoBehaviour
         if (archetype == null) archetype = spawned.AddComponent<EnemyArchetype>();
         archetype.Configure(kind, stageIndex);
         MonsterSurvivorArtLibrary.ApplyEnemy(spawned, kind);
+        // Fit the collider after the final scale is settled, independent of whether
+        // the procedural art loaded (ApplyEnemy returns early when a sheet is missing).
+        MonsterSurvivorArtLibrary.FitEnemyBodyCollider(spawned, kind);
         ApplyPressureDifficulty(enemy);
         if (!trackedEnemies.Contains(enemy))
         {
@@ -217,8 +220,11 @@ public class EnemySpawner : MonoBehaviour
         enemy.currentHP = enemy.maxHP;
         enemy.moveSpeed *= 1f + timePressure * GameBalance.Get("spawn.speed_time_factor", 0.1f) +
             stagePressure * GameBalance.Get("spawn.speed_stage_factor", 0.15f);
-        if (timePressure > GameBalance.Get("spawn.late_damage_threshold", 0.75f) && enemy.contactDamage >= 2)
-            enemy.contactDamage += stageIndex >= 3 ? GameBalance.GetInt("spawn.late_damage_stage3_add", 1) : 0;
+        // Late-stage damage buff only applies to hits at or above the migrated
+        // 40-damage threshold, so 20-damage cell shadows are never reinforced.
+        if (timePressure > GameBalance.Get("spawn.late_damage_threshold", 0.75f) &&
+            enemy.contactDamage >= GameBalance.GetInt("spawn.late_damage_min", 40))
+            enemy.contactDamage += stageIndex >= 3 ? GameBalance.GetInt("spawn.late_damage_stage3_add", 20) : 0;
 
         // Keep early upgrades exciting, then taper orb value as the five-minute run advances.
         float lateGame = Mathf.Clamp01((stageElapsed - GameBalance.Get("spawn.xp_decay_start", 120f)) /

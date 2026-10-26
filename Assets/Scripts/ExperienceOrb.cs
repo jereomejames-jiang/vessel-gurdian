@@ -10,11 +10,21 @@ public class ExperienceOrb : MonoBehaviour
     public PlayerStats playerStats;
     public bool collected;
 
+    // Base range is captured once; the suction multiplier is re-read live so an
+    // orb that is already on the ground reacts to a new SuctionTube level. Always
+    // multiply the base, never the previous result, so repeated upgrades cannot
+    // compound into an unbounded radius.
+    [HideInInspector] public float baseMagnetRange;
+    [HideInInspector] public CharacterCombat cachedCombat;
+    [HideInInspector] public PlayerSkillCollection cachedSkills;
+
     void Start()
     {
         magnetRange = GameBalance.Get("xp.magnet_range", magnetRange);
         magnetSpeed = GameBalance.Get("xp.magnet_speed", magnetSpeed);
-        ApplySuctionTubeBonus();
+        baseMagnetRange = magnetRange;
+        CacheSuctionSources();
+        RefreshMagnetRange();
         SpriteRenderer renderer = GetComponent<SpriteRenderer>();
         if (renderer == null) return;
         string gem = xpValue >= 15 ? "xp_purple" : (xpValue >= 5 ? "xp_orange" : (xpValue >= 3 ? "xp_green" : "xp_blue"));
@@ -38,6 +48,9 @@ public class ExperienceOrb : MonoBehaviour
         }
 
         if (player == null) return;
+
+        // Live suction: cached references, no per-frame scene search.
+        RefreshMagnetRange();
 
         float distance = Vector2.Distance(transform.position, player.position);
         if (distance <= magnetRange)
@@ -79,14 +92,26 @@ public class ExperienceOrb : MonoBehaviour
         }
     }
 
-    void ApplySuctionTubeBonus()
+    // Resolved once and reused; the orb never searches the scene per frame.
+    void CacheSuctionSources()
     {
-        CharacterCombat combat = FindAnyObjectByType<CharacterCombat>();
-        if (combat == null) return;
-        int level = combat.GetVesselSkillLevel(UpgradeType.SuctionTube);
-        if (level <= 0) return;
+        if (cachedCombat == null) cachedCombat = FindAnyObjectByType<CharacterCombat>();
+        if (cachedSkills == null) cachedSkills = FindAnyObjectByType<PlayerSkillCollection>();
+    }
+
+    // Effective range = base x current skill multiplier, recomputed from the base
+    // every frame so upgrades apply to orbs already lying on the ground and
+    // repeated levels never multiply the previous result.
+    public void RefreshMagnetRange()
+    {
+        if (cachedCombat == null && cachedSkills == null) CacheSuctionSources();
+        int level = 0;
+        if (cachedSkills != null) level = cachedSkills.GetLevel(UpgradeType.SuctionTube);
+        else if (cachedCombat != null) level = cachedCombat.GetVesselSkillLevel(UpgradeType.SuctionTube);
+        level = Mathf.Clamp(level, 0, LevelUpManager.SkillMaxLevel);
+        if (level <= 0) { magnetRange = baseMagnetRange; return; }
         float mult = level >= 3 ? GameBalance.Get("skill.tube.magnet_lv3", 1.3f)
             : (level == 2 ? GameBalance.Get("skill.tube.magnet_lv2", 1.2f) : GameBalance.Get("skill.tube.magnet_lv1", 1.1f));
-        magnetRange *= mult;
+        magnetRange = baseMagnetRange * mult;
     }
 }

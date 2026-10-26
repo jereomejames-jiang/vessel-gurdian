@@ -6,7 +6,7 @@ public class Enemy : MonoBehaviour
 {
     public int maxHP = 3;
     public float moveSpeed = 2f;
-    public int contactDamage = 1;
+    public int contactDamage = 20;
     public int xpValue = 1;
     public GameObject xpOrbPrefab;
     public bool externalMovement;
@@ -86,20 +86,22 @@ public class Enemy : MonoBehaviour
             currentHP = 0;
             deathPending = true;
             OnDied?.Invoke(this);
-            if (deathDelay > 0f)
-            {
-                Collider2D[] colliders = GetComponents<Collider2D>();
-                for (int i = 0; i < colliders.Length; i++) colliders[i].enabled = false;
-                if (rb != null) rb.simulated = false;
-                StartCoroutine(FinalizeDeathAfterDelay());
-            }
-            else FinalizeDeath();
+            Collider2D[] colliders = GetComponents<Collider2D>();
+            for (int i = 0; i < colliders.Length; i++) colliders[i].enabled = false;
+            if (rb != null) rb.simulated = false;
+            // Death is always deferred by at least one frame. A rupture archetype starts
+            // its fuse/blast coroutine from OnDied above, and a synchronous FinalizeDeath
+            // would Destroy this object and kill that coroutine before it could fire.
+            StartCoroutine(FinalizeDeathAfterDelay());
         }
     }
 
     public IEnumerator FinalizeDeathAfterDelay()
     {
-        yield return new WaitForSecondsRealtime(Mathf.Max(0f, deathDelay));
+        // Game time, not real time: a paused run freezes the remaining wait, and the
+        // terminal state check below keeps a settled run from awarding drops.
+        yield return new WaitForSeconds(Mathf.Max(0f, deathDelay));
+        if (GameManager.Instance != null && GameManager.Instance.gameEnded) yield break;
         FinalizeDeath();
     }
 

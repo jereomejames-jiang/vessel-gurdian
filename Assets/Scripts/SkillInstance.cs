@@ -9,7 +9,7 @@ public class SkillInstance : MonoBehaviour
 
     public void RecordSelection()
     {
-        selectedCount++;
+        if (selectedCount < LevelUpManager.SkillMaxLevel) selectedCount++;
         acquired = true;
     }
 }

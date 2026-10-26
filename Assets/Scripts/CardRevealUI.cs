@@ -88,7 +88,9 @@ public class CardRevealUI : MonoBehaviour
         showingEducation = false;
         flipTimer = 0f;
         timer = 0f;
-        Time.timeScale = 0f;
+        // The reveal claims only its own reason. It may appear while other pauses
+        // are already held, and it must never force the clock to zero on its own.
+        if (GameManager.Instance != null) GameManager.Instance.SetPause(PauseReason.CardReveal, true);
     }
 
     public void EnsureCardIcon()
@@ -246,18 +248,16 @@ public class CardRevealUI : MonoBehaviour
         }
         activeCard = null;
 
-        LevelUpManager levels = FindAnyObjectByType<LevelUpManager>();
-        if ((levels == null || !levels.isChoosing) &&
-            (SkillCodexManager.Instance == null || !SkillCodexManager.Instance.panelOpen) &&
-            (GameManager.Instance == null || !GameManager.Instance.gameEnded))
-        {
-            UIManager testUI = FindAnyObjectByType<UIManager>();
-            Time.timeScale = testUI != null && testUI.speedSixX ? testUI.testSpeedMultiplier : 1f;
-        }
+        // Release exactly the reveal's own reason. A menu or codex pause held by
+        // another owner survives this auto-close, and the stored base speed (normal
+        // or x6) is what the central entry restores.
+        if (GameManager.Instance != null) GameManager.Instance.SetPause(PauseReason.CardReveal, false);
     }
 
     void OnDestroy()
     {
+        // Leaving the scene mid-reveal must not strand the reveal pause.
+        if (GameManager.Instance != null) GameManager.Instance.SetPause(PauseReason.CardReveal, false);
         if (Instance == this) Instance = null;
         // displayFont 是共享资源（RuntimeFont），不能销毁
     }

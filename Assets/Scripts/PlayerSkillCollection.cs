@@ -25,21 +25,41 @@ public class PlayerSkillCollection : MonoBehaviour
         }
     }
 
+    // Match by skill TYPE, not by the option asset reference: LevelUpManager may
+    // rebuild its option array (VesselSkillCatalog.CreateOptions), and a reference
+    // match then created a second entry for the same skill while GetLevel kept
+    // reading the empty first one, so the picked level never took effect.
     public SkillInstance GetSkill(UpgradeOption option)
     {
-        return skills.Find(skill => skill != null && skill.definition == option);
+        if (option == null) return null;
+        for (int i = 0; i < skills.Count; i++)
+        {
+            SkillInstance skill = skills[i];
+            if (skill == null || skill.definition == null) continue;
+            if (skill.definition == option || skill.definition.type == option.type) return skill;
+        }
+        return null;
     }
 
     public void RecordSelection(UpgradeOption option)
     {
         if (option == null) return;
         Initialize(new[] { option });
-        GetSkill(option).RecordSelection();
+        SkillInstance instance = GetSkill(option);
+        if (instance != null) instance.RecordSelection();
     }
 
     public int GetLevel(UpgradeType type)
     {
-        SkillInstance instance = skills.Find(skill => skill != null && skill.definition != null && skill.definition.type == type);
-        return instance == null ? 0 : instance.selectedCount;
+        SkillInstance instance = null;
+        for (int i = 0; i < skills.Count; i++)
+        {
+            SkillInstance skill = skills[i];
+            if (skill == null || skill.definition == null || skill.definition.type != type) continue;
+            // Take the highest recorded count so a duplicated entry can never mask
+            // the real level; effective level still clamps to 0..3.
+            if (instance == null || skill.selectedCount > instance.selectedCount) instance = skill;
+        }
+        return instance == null ? 0 : Mathf.Clamp(instance.selectedCount, 0, LevelUpManager.SkillMaxLevel);
     }
 }

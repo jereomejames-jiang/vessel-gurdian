@@ -46,6 +46,39 @@ public class CharacterCombat : MonoBehaviour
         HandleLevelUp(stats.level);
     }
 
+    // Orbit and knockback live on the fixed step so the shove no longer depends on
+    // render rate. The configured value stays a 60 Hz reference strength: each step
+    // applies value * 60 * fixedDeltaTime, so accumulated knockback over time is the
+    // same at 30, 60 or 120 FPS.
+    public void FixedUpdate()
+    {
+        if (!initialized || Time.timeScale <= 0f || stats.currentHP <= 0 ||
+            (GameManager.Instance != null && GameManager.Instance.gameEnded)) return;
+        int flush = GetVesselSkillLevel(UpgradeType.FlushNeedle);
+        if (flush <= 0) return;
+        EnsureFlushNeedles(flush + GameBalance.GetInt("skill.rinse.count_base", 1));
+        if (flushNeedles.Count == 0) return;
+
+        float radius = GameBalance.Get("skill.rinse.radius_base", 1.25f) + flush * GameBalance.Get("skill.rinse.radius_per_level", 0.18f);
+        float hitRadius = GameBalance.Get("skill.rinse.hit_radius", 0.55f);
+        float spin = GameBalance.Get("skill.rinse.angular_base", 95f) + flush * GameBalance.Get("skill.rinse.angular_per_level", 12f);
+        float knockback = GameBalance.Get("skill.rinse.knockback", 0.18f) * 60f * Time.fixedDeltaTime;
+
+        RefreshTargets();
+        for (int i = 0; i < flushNeedles.Count; i++)
+        {
+            float angle = Time.time * spin + i * 360f / flushNeedles.Count;
+            Vector3 pos = transform.position + Quaternion.Euler(0f, 0f, angle) * Vector3.right * radius;
+            flushNeedles[i].transform.position = pos;
+            for (int j = 0; j < targets.Count; j++)
+            {
+                Enemy enemy = targets[j];
+                if (enemy != null && (enemy.transform.position - pos).sqrMagnitude < hitRadius * hitRadius)
+                    enemy.ApplyKnockback((enemy.transform.position - transform.position).normalized, knockback);
+            }
+        }
+    }
+
     public void Update()
     {
         if (!initialized || Time.timeScale <= 0f || stats.currentHP <= 0 ||
@@ -68,7 +101,7 @@ public class CharacterCombat : MonoBehaviour
         if (role == CharacterRole.Pharmacist && rank < 1 && newRank >= 1)
         {
             if (controller != null) controller.moveSpeed *= GameBalance.Get("pharmacist.r1_move_mult", 1.1f);
-            stats.IncreaseMaxHP(GameBalance.GetInt("pharmacist.r1_hp_bonus", 1));
+            stats.IncreaseMaxHP(GameBalance.Get("pharmacist.r1_hp_bonus", 20f));
         }
         if (rank < 4 && newRank >= 4) specialTimer = GameBalance.Get("character.special_first_delay", 3f);
         rank = newRank;
@@ -231,27 +264,7 @@ public class CharacterCombat : MonoBehaviour
         }
 
         int flush = GetVesselSkillLevel(UpgradeType.FlushNeedle);
-        if (flush > 0)
-        {
-            EnsureFlushNeedles(flush + GameBalance.GetInt("skill.rinse.count_base", 1));
-            float radius = GameBalance.Get("skill.rinse.radius_base", 1.25f) + flush * GameBalance.Get("skill.rinse.radius_per_level", 0.18f);
-            float hitRadius = GameBalance.Get("skill.rinse.hit_radius", 0.55f);
-            for (int i = 0; i < flushNeedles.Count; i++)
-            {
-                float angle = Time.time * (GameBalance.Get("skill.rinse.angular_base", 95f) +
-                    flush * GameBalance.Get("skill.rinse.angular_per_level", 12f)) + i * 360f / flushNeedles.Count;
-                Vector3 pos = transform.position + Quaternion.Euler(0f, 0f, angle) * Vector3.right * radius;
-                flushNeedles[i].transform.position = pos;
-                RefreshTargets();
-                for (int j = 0; j < targets.Count; j++)
-                {
-                    Enemy enemy = targets[j];
-                    if (enemy != null && (enemy.transform.position - pos).sqrMagnitude < hitRadius * hitRadius)
-                        enemy.ApplyKnockback((enemy.transform.position - transform.position).normalized,
-                            GameBalance.Get("skill.rinse.knockback", 0.18f));
-                }
-            }
-        }
+        if (flush > 0) EnsureFlushNeedles(flush + GameBalance.GetInt("skill.rinse.count_base", 1));
 
         int catheter = GetVesselSkillLevel(UpgradeType.ThrombusCatheter);
         if (catheter > 0)
@@ -361,7 +374,8 @@ public class CharacterCombat : MonoBehaviour
             (level == 2 ? GameBalance.Get("skill.forceps.chance_lv2", 0.20f) : GameBalance.Get("skill.forceps.chance_lv1", 0.15f));
         if (Random.value <= chance && stats != null)
         {
-            int amount = Mathf.Max(1, Mathf.CeilToInt(stats.maxHP * GameBalance.Get("skill.forceps.heal_percent", 0.05f)));
+            // True proportional heal: no rounding up, no minimum 1.
+            float amount = stats.maxHP * GameBalance.Get("skill.forceps.heal_percent", 0.05f);
             stats.Heal(amount);
         }
     }
@@ -393,7 +407,9 @@ public class CharacterCombat : MonoBehaviour
     public void ThrowAblationBombs(int level)
     {
         RefreshTargets();
-        int bombCount = level >= 3 ? GameBalance.GetInt("skill.ablation.count_lv3", 3) : GameBalance.GetInt("skill.ablation.count_lv12", 2);
+        // Per-level counts are explicit: Lv1 throws two, Lv2 and Lv3 throw three.
+        int bombCount = level <= 1 ? GameBalance.GetInt("skill.ablation.count_lv1", 2)
+            : (level == 2 ? GameBalance.GetInt("skill.ablation.count_lv2", 3) : GameBalance.GetInt("skill.ablation.count_lv3", 3));
         float delay = level >= 3 ? GameBalance.Get("skill.ablation.delay_lv3", 0.5f) : GameBalance.Get("skill.ablation.delay_lv12", 1f);
         List<Enemy> candidates = new List<Enemy>();
         Camera camera = Camera.main;
@@ -404,18 +420,25 @@ public class CharacterCombat : MonoBehaviour
             Vector3 viewport = camera == null ? Vector3.one * 0.5f : camera.WorldToViewportPoint(enemy.transform.position);
             if (viewport.z > 0f && viewport.x >= 0f && viewport.x <= 1f && viewport.y >= 0f && viewport.y <= 1f) candidates.Add(enemy);
         }
-        for (int i = 0; i < Mathf.Min(bombCount, candidates.Count); i++)
+        // No legal target: skip this throw entirely rather than spending the volley.
+        if (candidates.Count == 0) return;
+        // Always throw the full tier count. With too few targets the extras re-aim at
+        // random existing candidates; each bomb resolves its own blast independently.
+        for (int i = 0; i < bombCount; i++)
         {
-            int swap = Random.Range(i, candidates.Count);
-            Enemy temp = candidates[i]; candidates[i] = candidates[swap]; candidates[swap] = temp;
-            StartCoroutine(ThrowDelayedBomb(candidates[i].transform.position, delay));
+            Enemy target = candidates[Random.Range(0, candidates.Count)];
+            if (target == null) continue;
+            StartCoroutine(ThrowDelayedBomb(target.transform.position, delay));
         }
     }
 
     public System.Collections.IEnumerator ThrowDelayedBomb(Vector3 landing, float delay)
     {
-        CharacterAttackEffect.Throw(this, landing, false);
+        CharacterAttackEffect.Throw(this, landing, ProjectilePayload.AblationBomb);
+        // Flight and fuse are counted separately and belong to the bomb: flight is
+        // skill.ablation.extra_delay (0.35s), then the tier fuse below.
         yield return new WaitForSeconds(GameBalance.Get("skill.ablation.extra_delay", 0.35f) + delay);
+        if (GameManager.Instance != null && GameManager.Instance.gameEnded) yield break;
         CharacterAttackEffect.Burst(this, landing, GameBalance.Get("skill.ablation.blast_radius", 2.2f),
             Mathf.Max(GameBalance.GetInt("skill.ablation.damage_min", 2),
                 weapon.bulletDamage + GameBalance.GetInt("skill.ablation.damage_add", 2)), true);
@@ -470,7 +493,7 @@ public class CharacterCombat : MonoBehaviour
             float distance = (enemy.transform.position - transform.position).sqrMagnitude;
             if (distance < best) { best = distance; landing = enemy.transform.position; }
         }
-        CharacterAttackEffect.Throw(this, landing, false);
+        CharacterAttackEffect.Throw(this, landing, ProjectilePayload.Ampoule);
     }
 
     public void AmpouleImpact(Vector3 position)
@@ -506,7 +529,7 @@ public class CharacterCombat : MonoBehaviour
                     if (distance < best) { best = distance; destination = enemy.transform.position; }
                 }
             }
-            CharacterAttackEffect.Throw(this, destination, true);
+            CharacterAttackEffect.Throw(this, destination, ProjectilePayload.Missile);
             return;
         }
         Camera camera = Camera.main;

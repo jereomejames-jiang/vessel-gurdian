@@ -17,6 +17,7 @@ public class LevelUpManager : MonoBehaviour
     public bool subscribed;
     public bool isChoosing;
     public int pendingLevels;
+    public const int SkillMaxLevel = 3;
 
     void OnEnable() { Subscribe(); }
     void Start() { Subscribe(); }
@@ -52,6 +53,15 @@ public class LevelUpManager : MonoBehaviour
     {
         if (subscribed && playerStats != null) playerStats.OnLevelUp -= HandleLevelUp;
         subscribed = false;
+        // Tearing down mid-choice (scene switch, restart) must not strand the
+        // CardChoice pause into the next run.
+        if (isChoosing)
+        {
+            isChoosing = false;
+            pendingLevels = 0;
+            currentChoices = Array.Empty<UpgradeOption>();
+            if (GameManager.Instance != null) GameManager.Instance.SetPause(PauseReason.CardChoice, false);
+        }
     }
 
     public void HandleLevelUp(int newLevel)
@@ -61,21 +71,33 @@ public class LevelUpManager : MonoBehaviour
         if (!isChoosing) ShowNextChoices();
     }
 
+    public int GetSkillLevel(UpgradeType type)
+    {
+        return playerSkillCollection == null ? 0 : playerSkillCollection.GetLevel(type);
+    }
+
+    public bool IsSkillMaxed(UpgradeOption option)
+    {
+        return option != null && VesselSkillCatalog.IsVesselSkill(option.type) &&
+            GetSkillLevel(option.type) >= SkillMaxLevel;
+    }
+
     public void ShowNextChoices()
     {
+        // Deduplicate by skill type and exclude skills already at Lv3.
         List<UpgradeOption> pool = new List<UpgradeOption>();
+        HashSet<UpgradeType> seen = new HashSet<UpgradeType>();
         if (allUpgrades != null)
             foreach (UpgradeOption option in allUpgrades)
-                if (option != null && !pool.Contains(option)) pool.Add(option);
+            {
+                if (option == null || !seen.Add(option.type)) continue;
+                if (IsSkillMaxed(option)) continue;
+                pool.Add(option);
+            }
 
         if (pool.Count == 0)
         {
-            pendingLevels = 0;
-            isChoosing = false;
-            currentChoices = Array.Empty<UpgradeOption>();
-            OnChoicesClosed?.Invoke();
-            if (GameManager.Instance == null || !GameManager.Instance.gameEnded) Time.timeScale = 1f;
-            Debug.LogWarning("VesselGuard: Resources 中没有可用的升级选项。");
+            ConsumeRewardWithoutChoice();
             return;
         }
 
@@ -88,8 +110,26 @@ public class LevelUpManager : MonoBehaviour
         }
         currentChoices = pool.GetRange(0, Mathf.Clamp(choicesPerLevel, 1, pool.Count)).ToArray();
         isChoosing = true;
-        Time.timeScale = 0f;
+        if (GameManager.Instance != null) GameManager.Instance.SetPause(PauseReason.CardChoice, true);
         OnShowChoices?.Invoke(currentChoices);
+    }
+
+    // All ten skills are maxed: spend the reward on a 10% max-HP heal instead of
+    // showing an empty panel. Full HP still consumes the reward without blocking.
+    public void ConsumeRewardWithoutChoice()
+    {
+        pendingLevels = Mathf.Max(0, pendingLevels - 1);
+        isChoosing = false;
+        currentChoices = Array.Empty<UpgradeOption>();
+        if (playerStats != null)
+            playerStats.Heal(playerStats.maxHP * GameBalance.Get("game.maxed_skill_heal_percent", 0.1f));
+        if (pendingLevels > 0)
+        {
+            ShowNextChoices();
+            return;
+        }
+        OnChoicesClosed?.Invoke();
+        if (GameManager.Instance != null) GameManager.Instance.SetPause(PauseReason.CardChoice, false);
     }
 
     public void ApplyUpgrade(UpgradeOption option)
@@ -99,7 +139,26 @@ public class LevelUpManager : MonoBehaviour
             (GameManager.Instance != null && GameManager.Instance.gameEnded)) return;
 
         Subscribe();
-        int previousSkillLevel = playerSkillCollection == null ? 0 : playerSkillCollection.GetLevel(option.type);
+        int previousSkillLevel = GetSkillLevel(option.type);
+
+        // Second eligibility gate: stale buttons or double clicks can never push
+        // a vessel skill past Lv3. The reward is consumed and the queue advances.
+        if (previousSkillLevel >= SkillMaxLevel && VesselSkillCatalog.IsVesselSkill(option.type))
+        {
+            isChoosing = false;
+            currentChoices = Array.Empty<UpgradeOption>();
+            pendingLevels = Mathf.Max(0, pendingLevels - 1);
+            if (pendingLevels > 0) ShowNextChoices();
+            else
+            {
+                OnChoicesClosed?.Invoke();
+                // Pause release goes through the central entry; the stored base
+                // speed (normal or x6) is what resumes.
+                if (GameManager.Instance != null) GameManager.Instance.SetPause(PauseReason.CardChoice, false);
+            }
+            return;
+        }
+
         // Clear before callbacks so the same choice cannot be applied twice.
         isChoosing = false;
         currentChoices = Array.Empty<UpgradeOption>();
@@ -115,7 +174,7 @@ public class LevelUpManager : MonoBehaviour
                 if (playerController != null) playerController.moveSpeed *= 1f + option.value;
                 break;
             case UpgradeType.MaxHP:
-                if (playerStats != null) playerStats.IncreaseMaxHP(Mathf.RoundToInt(option.value));
+                if (playerStats != null) playerStats.IncreaseMaxHP(option.value);
                 break;
             case UpgradeType.BulletSpeed:
                 if (autoAttack != null) autoAttack.IncreaseBulletSpeed(option.value);
@@ -123,11 +182,10 @@ public class LevelUpManager : MonoBehaviour
         }
         if (playerSkillCollection == null) playerSkillCollection = FindAnyObjectByType<PlayerSkillCollection>();
         if (playerSkillCollection != null) playerSkillCollection.RecordSelection(option);
-        int nextSkillLevel = playerSkillCollection == null ? Mathf.Clamp(previousSkillLevel + 1, 1, 3) :
-            Mathf.Clamp(playerSkillCollection.GetLevel(option.type), 1, 3);
+        int nextSkillLevel = Mathf.Clamp(GetSkillLevel(option.type), 1, SkillMaxLevel);
         CharacterCombat combat = FindAnyObjectByType<CharacterCombat>();
         if (combat != null && VesselSkillCatalog.IsVesselSkill(option.type))
-            combat.ApplyVesselSkill(option.type, playerSkillCollection == null ? 1 : playerSkillCollection.GetLevel(option.type));
+            combat.ApplyVesselSkill(option.type, GetSkillLevel(option.type));
         pendingLevels = Mathf.Max(0, pendingLevels - 1);
         if (pendingLevels > 0) ShowNextChoices();
         else { OnChoicesClosed?.Invoke(); }
@@ -136,17 +194,17 @@ public class LevelUpManager : MonoBehaviour
         // Finish queued choices before showing a reveal or releasing the pause.
         if (isChoosing) return;
 
+        // The choice is over either way, so the CardChoice reason is released HERE,
+        // before anything else can hold a pause. Previously the reveal branch never
+        // released it: the card auto-closed, CardReveal was cleared, and the leftover
+        // CardChoice froze the run with no popup left to close.
+        if (GameManager.Instance != null) GameManager.Instance.SetPause(PauseReason.CardChoice, false);
+
         SkillCardDefinition card = null;
         if (option.skillCard != null) card = option.skillCard;
         else if (SkillCodexManager.Instance != null) card = SkillCodexManager.Instance.GetCardFor(option);
+        // The reveal holds only its own reason, so releasing it later resumes play.
         if (card != null && CardRevealUI.Instance != null && CardRevealUI.Instance.revealPanel != null)
             CardRevealUI.Instance.Show(card, previousSkillLevel, nextSkillLevel);
-        else if (GameManager.Instance == null || !GameManager.Instance.gameEnded)
-        {
-            UIManager testUI = FindAnyObjectByType<UIManager>();
-            Time.timeScale = testUI != null && testUI.speedSixX ? testUI.testSpeedMultiplier : 1f;
-        }
     }
 }
-
-

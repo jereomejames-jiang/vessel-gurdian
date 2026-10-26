@@ -16,7 +16,14 @@ public static class MonsterSurvivorArtLibrary
     {
         if (string.IsNullOrEmpty(assetName)) return null;
         Sprite[] cached;
-        if (frameCache.TryGetValue(assetName, out cached)) return cached;
+        if (frameCache.TryGetValue(assetName, out cached))
+        {
+            // 编辑器反复进出 Play / 域重载后，运行时贴图会被销毁，缓存里会残留
+            // "假空"引用（UnityEngine.Object 的 fake-null）。只要有一帧失效就整体重生成。
+            bool allValid = cached != null && cached.Length > 0;
+            if (allValid) for (int i = 0; i < cached.Length; i++) if (cached[i] == null) { allValid = false; break; }
+            if (allValid) return cached;
+        }
         cached = new Sprite[4];
         for (int i = 0; i < cached.Length; i++) cached[i] = MakeSprite(assetName + "_frame_" + i, assetName, i);
         frameCache[assetName] = cached;
@@ -27,7 +34,7 @@ public static class MonsterSurvivorArtLibrary
     {
         if (string.IsNullOrEmpty(assetName)) return null;
         Sprite cached;
-        if (singleCache.TryGetValue(assetName, out cached)) return cached;
+        if (singleCache.TryGetValue(assetName, out cached) && cached != null) return cached;
         cached = MakeSprite("single_" + assetName, assetName, 0);
         singleCache[assetName] = cached;
         return cached;
@@ -84,6 +91,9 @@ public static class MonsterSurvivorArtLibrary
         }
         renderer.sprite = frames[0]; renderer.color = Color.white; renderer.sortingOrder = 5;
         player.transform.localScale = Vector3.one * 1.42f;
+        // The sprite is drawn with transparent padding around the body; the collider
+        // must follow the visible silhouette, not the full scaled rect.
+        FitBodyCollider(player, 0.80f, 0.80f);
         MonsterSurvivorSpriteAnimator animator = player.GetComponent<MonsterSurvivorSpriteAnimator>();
         if (animator == null) animator = player.AddComponent<MonsterSurvivorSpriteAnimator>();
         animator.SetFrames(frames, 9f);
@@ -111,6 +121,55 @@ public static class MonsterSurvivorArtLibrary
         if (animator == null) animator = enemyObject.AddComponent<MonsterSurvivorSpriteAnimator>();
         animator.SetFrames(frames, kind == EnemyKind.NodeBoss ? 5f : 8f);
         Enemy enemy = enemyObject.GetComponent<Enemy>(); if (enemy != null) enemy.visualColor = Color.white;
+    }
+
+    // Body sizes in world units (initial tuning values). Regular mobs share the
+    // slime/bat/pumpkin silhouette, the thrombus is a wide flat clot, and the boss
+    // is a large target but still smaller than its decorative sprite padding.
+    public static float EnemyBodyWidth(EnemyKind kind)
+    {
+        switch (kind)
+        {
+            case EnemyKind.MicroThrombus: return 1.00f;
+            case EnemyKind.NodeBoss: return 1.25f;
+            default: return 0.59f;
+        }
+    }
+
+    public static float EnemyBodyHeight(EnemyKind kind)
+    {
+        switch (kind)
+        {
+            case EnemyKind.MicroThrombus: return 0.45f;
+            case EnemyKind.NodeBoss: return 1.25f;
+            default: return 0.59f;
+        }
+    }
+
+    // Public entry so the spawner can fit the collider AFTER the final scale is set,
+    // independent of whether the procedural art loaded (which can return early).
+    public static void FitEnemyBodyCollider(GameObject enemyObject, EnemyKind kind)
+    {
+        FitBodyCollider(enemyObject, EnemyBodyWidth(kind), EnemyBodyHeight(kind));
+    }
+
+    // Sets a BoxCollider2D (or CircleCollider2D) to a world-space body size by
+    // dividing out the object's current scale. Called AFTER scale is applied, so the
+    // effective collider matches the visible body instead of the transparent rect.
+    public static void FitBodyCollider(GameObject go, float bodyWidth, float bodyHeight)
+    {
+        if (go == null) return;
+        Vector3 lossy = go.transform.lossyScale;
+        float sx = Mathf.Max(0.0001f, Mathf.Abs(lossy.x));
+        float sy = Mathf.Max(0.0001f, Mathf.Abs(lossy.y));
+        BoxCollider2D box = go.GetComponent<BoxCollider2D>();
+        if (box != null)
+        {
+            box.size = new Vector2(bodyWidth / sx, bodyHeight / sy);
+            return;
+        }
+        CircleCollider2D circle = go.GetComponent<CircleCollider2D>();
+        if (circle != null) circle.radius = Mathf.Max(bodyWidth / sx, bodyHeight / sy) * 0.5f;
     }
 
     public static void ApplySliced(Image image, string styleKey, Color color)

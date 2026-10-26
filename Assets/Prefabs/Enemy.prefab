@@ -182,7 +182,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Enemy
   maxHP: 3
   moveSpeed: 2
-  contactDamage: 1
+  contactDamage: 20
   xpOrbPrefab: {fileID: 5311838195219535682, guid: a0a237aadd7e805468918600b8bdc0c8, type: 3}
   currentHP: 0
   player: {fileID: 0}

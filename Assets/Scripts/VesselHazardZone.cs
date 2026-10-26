@@ -95,26 +95,57 @@ public class VesselHazardZone : MonoBehaviour
     public Sprite GetHazardSprite()
     {
         if (hazardSprite != null) return hazardSprite;
-        Texture2D texture = new Texture2D(32, 32, TextureFormat.RGBA32, false);
+        Texture2D texture = new Texture2D(64, 64, TextureFormat.RGBA32, false);
         texture.name = "RuntimeHazardZoneTexture";
         texture.filterMode = FilterMode.Bilinear;
-        Color[] pixels = new Color[32 * 32];
-        Vector2 center = new Vector2(15.5f, 15.5f);
-        for (int y = 0; y < 32; y++)
+        Color[] pixels = new Color[64 * 64];
+        Vector2 center = new Vector2(31.5f, 31.5f);
+        for (int y = 0; y < 64; y++)
         {
-            for (int x = 0; x < 32; x++)
+            for (int x = 0; x < 64; x++)
             {
-                float distance = Vector2.Distance(new Vector2(x, y), center) / 15.5f;
-                float alpha = Mathf.Clamp01((1f - distance) * 0.65f);
-                pixels[y * 32 + x] = new Color(1f, 0.1f, 0.55f, alpha);
+                float distance = Vector2.Distance(new Vector2(x, y), center) / 31.5f;
+                // Soft interior fill plus a bright ring AT the damage boundary, so the
+                // edge the player must avoid is clearly visible instead of fading out.
+                float fill = Mathf.Clamp01(1f - distance) * 0.26f;
+                float ring = Mathf.Clamp01(1f - Mathf.Abs(distance - 0.94f) / 0.06f);
+                float alpha = Mathf.Clamp01(Mathf.Max(fill, ring));
+                pixels[y * 64 + x] = new Color(1f, 0.06f, 0.55f, alpha);
             }
         }
         texture.SetPixels(pixels);
         texture.Apply(false, true);
-        hazardSprite = Sprite.Create(texture, new Rect(0f, 0f, 32f, 32f),
-            new Vector2(0.5f, 0.5f), 32f);
+        hazardSprite = Sprite.Create(texture, new Rect(0f, 0f, 64f, 64f),
+            new Vector2(0.5f, 0.5f), 64f);
         hazardSprite.name = "RuntimeHazardZone";
         return hazardSprite;
+    }
+
+    // A thin white ring used to telegraph an incoming blast. Tinted at the caller.
+    static Sprite ringSprite;
+    public static Sprite GetRingSprite()
+    {
+        if (ringSprite != null) return ringSprite;
+        Texture2D texture = new Texture2D(64, 64, TextureFormat.RGBA32, false);
+        texture.name = "RuntimeRingTexture";
+        texture.filterMode = FilterMode.Bilinear;
+        Color[] pixels = new Color[64 * 64];
+        Vector2 center = new Vector2(31.5f, 31.5f);
+        for (int y = 0; y < 64; y++)
+        {
+            for (int x = 0; x < 64; x++)
+            {
+                float distance = Vector2.Distance(new Vector2(x, y), center) / 31.5f;
+                float ring = Mathf.Clamp01(1f - Mathf.Abs(distance - 0.96f) / 0.04f);
+                pixels[y * 64 + x] = new Color(1f, 1f, 1f, ring);
+            }
+        }
+        texture.SetPixels(pixels);
+        texture.Apply(false, true);
+        ringSprite = Sprite.Create(texture, new Rect(0f, 0f, 64f, 64f),
+            new Vector2(0.5f, 0.5f), 64f);
+        ringSprite.name = "RuntimeRing";
+        return ringSprite;
     }
 
     public void OnDestroy()

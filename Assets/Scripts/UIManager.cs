@@ -189,11 +189,45 @@ public class UIManager : MonoBehaviour
         return null;
     }
 
-    public void UpdateHP(int current, int max)
+    public void UpdateHP(float current, float max)
     {
         if (HPSlider == null) return;
-        HPSlider.maxValue = Mathf.Max(1, max);
+        // Real values drive the bar; no integer snapping. The floating shield is
+        // already folded into the caller's max, so the bar stays proportional.
+        HPSlider.maxValue = Mathf.Max(0.0001f, max);
         HPSlider.value = current;
+        if (HPValueText == null) EnsureHPValueText();
+        if (HPValueText != null)
+            HPValueText.text = current.ToString("0.#") + " / " + max.ToString("0.#");
+    }
+
+    // Shared by the bar so text and fill always agree; kept off the scene asset so
+    // no prefab or scene rebuild is needed.
+    Text hpValueText;
+    public Text HPValueText
+    {
+        get
+        {
+            if (hpValueText == null) EnsureHPValueText();
+            return hpValueText;
+        }
+    }
+
+    void EnsureHPValueText()
+    {
+        if (HPSlider == null) return;
+        Transform existing = HPSlider.transform.Find("HPValueText");
+        if (existing != null) { hpValueText = existing.GetComponent<Text>(); if (hpValueText != null) return; }
+        hpValueText = CreateText(HPSlider.transform, "HPValueText", "", 16, TextAnchor.MiddleCenter,
+            Vector2.zero, new Vector2(220f, 24f));
+        if (hpValueText == null) return;
+        hpValueText.raycastTarget = false;
+        hpValueText.color = new Color(1f, 0.94f, 0.94f, 1f);
+        Outline outline = hpValueText.GetComponent<Outline>();
+        if (outline == null) outline = hpValueText.gameObject.AddComponent<Outline>();
+        outline.effectColor = new Color(0f, 0f, 0f, 0.55f);
+        outline.effectDistance = new Vector2(0.5f, 0.5f);
+        outline.useGraphicAlpha = false;
     }
 
     public void UpdateXP(int current, int needed, int level)
@@ -516,8 +550,8 @@ public class UIManager : MonoBehaviour
         if (VictoryTitle != null) VictoryTitle.text = "胜利！";
         if (VictorySubtitle != null) VictorySubtitle.text = (gameManager == null ? "血管守卫完成" : gameManager.stageSummary + " · 血管守卫完成");
         int level = playerStats == null ? 1 : playerStats.level;
-        int hp = playerStats == null ? 0 : playerStats.currentHP;
-        int maxHp = playerStats == null ? 0 : playerStats.maxHP;
+        float hp = playerStats == null ? 0f : playerStats.currentHP;
+        float maxHp = playerStats == null ? 0f : playerStats.maxHP;
         string role = characterCombat == null ? "守卫者" : CharacterCatalog.Name(characterCombat.role);
         int skills = 0;
         if (playerSkillCollection != null)
@@ -534,7 +568,7 @@ public class UIManager : MonoBehaviour
                 "Boss 讨伐   血管结节已清除\n" +
                 "守卫角色    " + role + "\n" +
                 "最终等级    Lv." + level + "\n" +
-                "生命状态    " + hp + " / " + maxHp + "\n" +
+                "生命状态    " + hp.ToString("0.#") + " / " + maxHp.ToString("0.#") + "\n" +
                 "击败敌人    " + defeated.ToString("000") + "\n" +
                 "收集经验    " + collectedXp.ToString("000") + "   " + waveLabel + "\n" +
                 "技能收集    " + skills + " / 10\n" +
@@ -545,10 +579,15 @@ public class UIManager : MonoBehaviour
 
     public void RestartGameFromResult()
     {
-        Time.timeScale = 1f;
         if (VictoryPanel != null) VictoryPanel.SetActive(false);
         if (gameManager != null) gameManager.RestartGame();
-        else SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
+        else
+        {
+            GameManager run = GameManager.Instance;
+            if (run != null) run.ClearAllPauses();
+            else Time.timeScale = 1f;
+            SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
+        }
     }
 
     public void EnsurePauseView()
@@ -620,9 +659,11 @@ public class UIManager : MonoBehaviour
     {
         if (PausePanel == null) EnsurePauseView();
         if (PausePanel == null) return;
-        previousTimeScale = Time.timeScale <= 0f ? 1f : Time.timeScale;
+        if (gameManager != null && gameManager.gameEnded) return;
+        // The menu owns one reason; the central entry decides the actual clock, so
+        // opening the menu over a reveal or codex keeps that pause intact too.
         isPausedByMenu = true;
-        Time.timeScale = 0f;
+        if (gameManager != null) gameManager.SetPause(PauseReason.Menu, true);
         PausePanel.SetActive(true);
         PausePanel.transform.SetAsLastSibling();
         if (pauseButton != null) pauseButton.gameObject.SetActive(false);
@@ -634,14 +675,17 @@ public class UIManager : MonoBehaviour
         if (PausePanel != null) PausePanel.SetActive(false);
         if (pauseButton != null && (gameManager == null || !gameManager.gameEnded))
             pauseButton.gameObject.SetActive(true);
-        if (gameManager == null || !gameManager.gameEnded)
-            Time.timeScale = previousTimeScale > 0f ? previousTimeScale : 1f;
+        // Releasing the menu reason restores the stored base speed (normal or x6)
+        // only when no other owner still holds a pause.
+        if (gameManager != null) gameManager.SetPause(PauseReason.Menu, false);
+        else Time.timeScale = 1f;
     }
 
     public void ExitToMainMenu()
     {
         isPausedByMenu = false;
-        Time.timeScale = 1f;
+        if (gameManager != null) gameManager.ClearAllPauses();
+        else Time.timeScale = 1f;
         SceneManager.LoadScene(mainMenuSceneName);
     }
 
@@ -694,7 +738,11 @@ public class UIManager : MonoBehaviour
         if (gameManager != null && gameManager.gameEnded) return;
         if (levelUpManager != null && levelUpManager.isChoosing) return;
         speedSixX = !speedSixX;
-        Time.timeScale = speedSixX ? testSpeedMultiplier : 1f;
+        // Speed is the same central setting as pause: the base speed is stored and
+        // only applied when nothing holds a pause, so toggling it mid-pause never
+        // resumes play behind a menu.
+        if (gameManager != null) gameManager.SetBaseSpeed(speedSixX ? testSpeedMultiplier : 1f);
+        else Time.timeScale = speedSixX ? testSpeedMultiplier : 1f;
         UpdateTestLabels();
     }
 

@@ -82,18 +82,18 @@ public class SkillCodexManager : MonoBehaviour
                 (CardRevealUI.Instance != null && CardRevealUI.Instance.isShowing) ||
                 (GameManager.Instance != null && GameManager.Instance.gameEnded))) return;
             EnsureView();
-            ownsPause = isGameplay && Time.timeScale > 0f;
-            if (ownsPause) Time.timeScale = 0f;
+            // The codex claims its own pause reason only during gameplay; the menu
+            // codex never touches the clock, and releasing it later cannot resume a
+            // pause held by the menu, a card choice or a reveal.
+            ownsPause = isGameplay && GameManager.Instance != null;
+            if (ownsPause) GameManager.Instance.SetPause(PauseReason.Codex, true);
             RefreshCards();
             codexPanel.transform.SetAsLastSibling();
         }
         else if (ownsPause)
         {
             ownsPause = false;
-            LevelUpManager levels = FindAnyObjectByType<LevelUpManager>();
-            if ((levels == null || !levels.isChoosing) &&
-                (GameManager.Instance == null || !GameManager.Instance.gameEnded))
-                Time.timeScale = 1f;
+            if (GameManager.Instance != null) GameManager.Instance.SetPause(PauseReason.Codex, false);
         }
         panelOpen = open;
         if (codexPanel != null) codexPanel.SetActive(open);
@@ -275,6 +275,12 @@ public class SkillCodexManager : MonoBehaviour
 
     void OnDestroy()
     {
+        // Scene switch or teardown must not leak a codex pause into the next run.
+        if (ownsPause)
+        {
+            ownsPause = false;
+            if (GameManager.Instance != null) GameManager.Instance.SetPause(PauseReason.Codex, false);
+        }
         if (Instance == this) Instance = null;
         // displayFont 是共享资源（RuntimeFont），不能销毁
     }

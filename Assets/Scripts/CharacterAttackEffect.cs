@@ -3,6 +3,11 @@ using UnityEngine;
 
 public enum CharacterEffectKind { Sector, Beam, Burst, Pool, Projectile, Flash }
 
+// What a thrown projectile carries. This replaces the old `missile` bool: an
+// ablation bomb must never be mistaken for a pharmacist ampoule, because only an
+// ampoule is allowed to open a medicine pool on impact.
+public enum ProjectilePayload { Ampoule, Missile, AblationBomb }
+
 // Lightweight shared geometry; no per-enemy physics query or temporary material.
 public class CharacterAttackEffect : MonoBehaviour
 {
@@ -20,7 +25,7 @@ public class CharacterAttackEffect : MonoBehaviour
     public float elapsed;
     public float tickTimer;
     public float tickInterval;
-    public bool missile;
+    public ProjectilePayload payload = ProjectilePayload.Ampoule;
     public bool scissors;
     public bool ripple;
     public bool retired;
@@ -146,14 +151,20 @@ public class CharacterAttackEffect : MonoBehaviour
         return effect;
     }
 
-    public static void Throw(CharacterCombat owner, Vector3 landing, bool missile)
+    public static void Throw(CharacterCombat owner, Vector3 landing, ProjectilePayload payload)
     {
-        CharacterAttackEffect effect = Create(owner, owner.transform.position, CharacterEffectKind.Projectile,
-            missile ? GameBalance.Get("nurse.missile_flight", 0.35f) : GameBalance.Get("pharmacist.ampoule_flight", 0.35f));
+        float flight = payload == ProjectilePayload.Missile
+            ? GameBalance.Get("nurse.missile_flight", 0.35f)
+            : (payload == ProjectilePayload.AblationBomb
+                ? GameBalance.Get("skill.ablation.extra_delay", 0.35f)
+                : GameBalance.Get("pharmacist.ampoule_flight", 0.35f));
+        CharacterAttackEffect effect = Create(owner, owner.transform.position, CharacterEffectKind.Projectile, flight);
         effect.destination = landing;
-        effect.missile = missile;
+        effect.payload = payload;
         effect.AddSprite();
-        effect.transform.localScale = missile ? new Vector3(0.2f, 0.55f, 1f) : new Vector3(0.22f, 0.35f, 1f);
+        effect.transform.localScale = payload == ProjectilePayload.Missile
+            ? new Vector3(0.2f, 0.55f, 1f)
+            : new Vector3(0.22f, 0.35f, 1f);
     }
 
     public static void Flash(CharacterCombat owner, Vector3 position, float radius, bool slow)
@@ -246,10 +257,23 @@ public class CharacterAttackEffect : MonoBehaviour
             transform.Rotate(0f, 0f, Time.deltaTime * 400f);
             if (elapsed >= lifetime)
             {
-                if (missile) Burst(source, destination, GameBalance.Get("nurse.missile_radius", 1.7f),
-                    source.weapon.bulletDamage * GameBalance.GetInt("nurse.missile_damage_mult", 4) +
-                    GameBalance.GetInt("nurse.missile_damage_add", 2), false);
-                else source.AmpouleImpact(destination);
+                // Every payload keeps its own landing behaviour. Only an ampoule may
+                // reach AmpouleImpact (and therefore a pharmacist medicine pool); a
+                // bomb does nothing here and is detonated by its own fuse coroutine.
+                switch (payload)
+                {
+                    case ProjectilePayload.Missile:
+                        Burst(source, destination, GameBalance.Get("nurse.missile_radius", 1.7f),
+                            source.weapon.bulletDamage * GameBalance.GetInt("nurse.missile_damage_mult", 4) +
+                            GameBalance.GetInt("nurse.missile_damage_add", 2), false);
+                        break;
+                    case ProjectilePayload.Ampoule:
+                        source.AmpouleImpact(destination);
+                        break;
+                    case ProjectilePayload.AblationBomb:
+                        // Fuse is owned by CharacterCombat.ThrowDelayedBomb.
+                        break;
+                }
             }
         }
         else if (kind == CharacterEffectKind.Pool)

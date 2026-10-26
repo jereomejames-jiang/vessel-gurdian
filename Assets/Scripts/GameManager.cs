@@ -3,6 +3,16 @@ using System.Collections;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
+// Distinct gameplay states. Once a run leaves Running it can never return, so the
+// first legal terminal condition (player death or boss defeat) permanently locks
+// the outcome and later events cannot flip it.
+public enum GameState { Running, VictoryPending, Won, Lost }
+
+// Every popup that freezes play claims its own reason bit. Time only resumes when
+// all reasons are cleared, so an auto-closing reveal can never release a menu pause.
+[Flags]
+public enum PauseReason { None = 0, Menu = 1, CardChoice = 2, CardReveal = 4, Codex = 8 }
+
 public class GameManager : MonoBehaviour
 {
     public static GameManager Instance;
@@ -10,6 +20,11 @@ public class GameManager : MonoBehaviour
     public float elapsedTime;
     public bool gameEnded;
     public bool victory;
+    public GameState state = GameState.Running;
+    // Centralized pause/speed control. baseTimeScale is 1 (normal) or the test
+    // multiplier (x6); any active pause reason forces the scale to 0.
+    PauseReason activePauses = PauseReason.None;
+    public float baseTimeScale = 1f;
     public PlayerStats playerStats;
     public SkillCodexManager skillCodexManager;
     public KnowledgeTicker knowledgeTicker;
@@ -38,7 +53,10 @@ public class GameManager : MonoBehaviour
         skillCodexManager.isGameplay = true;
         if (knowledgeTicker == null) knowledgeTicker = GetComponent<KnowledgeTicker>();
         if (knowledgeTicker == null) knowledgeTicker = gameObject.AddComponent<KnowledgeTicker>();
-        Time.timeScale = 1f;
+        state = GameState.Running;
+        activePauses = PauseReason.None;
+        baseTimeScale = 1f;
+        RecomputeTimeScale();
         selectedLevel = Mathf.Clamp(PlayerPrefs.GetInt("VesselGuard.SelectedLevel", 1), 1, 3);
         selectedLevelName = selectedLevel == 1 ? "血管起点" : (selectedLevel == 2 ? "斑块挑战" : "健康冲刺");
         stageSummary = selectedLevel == 1 ? "毛细血管 · 低压与微循环" :
@@ -77,10 +95,47 @@ public class GameManager : MonoBehaviour
         elapsedTime = 0f;
         gameEnded = false;
         victory = false;
+        state = GameState.Running;
         bossDefeated = false;
         enemiesDefeated = 0;
         experienceCollected = 0;
-        Time.timeScale = 1f;
+        activePauses = PauseReason.None;
+        baseTimeScale = 1f;
+        RecomputeTimeScale();
+    }
+
+    // Single entry point for both pausing and the normal/x6 running speed.
+    public void SetPause(PauseReason reason, bool enabled)
+    {
+        if (enabled) activePauses |= reason;
+        else activePauses &= ~reason;
+        RecomputeTimeScale();
+    }
+
+    public bool IsPaused(PauseReason reason) { return (activePauses & reason) != 0; }
+    public bool AnyPauseActive { get { return activePauses != PauseReason.None; } }
+
+    public void SetBaseSpeed(float scale)
+    {
+        baseTimeScale = Mathf.Max(0.0001f, scale);
+        RecomputeTimeScale();
+    }
+
+    // Scene switch or restart: drop every held reason so nothing leaks into the
+    // next run. The run being torn down may already be over, so the clock is
+    // normalised explicitly rather than through RecomputeTimeScale.
+    public void ClearAllPauses()
+    {
+        activePauses = PauseReason.None;
+        Time.timeScale = baseTimeScale;
+    }
+
+    // A run that has left Running stays frozen; otherwise paused freezes and the
+    // running speed applies only when no popup holds a reason.
+    void RecomputeTimeScale()
+    {
+        if (gameEnded) { Time.timeScale = 0f; return; }
+        Time.timeScale = activePauses != PauseReason.None ? 0f : baseTimeScale;
     }
 
     public int CurrentWave => Mathf.Clamp(Mathf.FloorToInt(elapsedTime / 30f) + 1, 1, Mathf.Max(1, Mathf.CeilToInt(gameDuration / 30f)));
@@ -106,39 +161,61 @@ public class GameManager : MonoBehaviour
 
     public void HandleBossDefeated()
     {
-        if (gameEnded || !requireBossDefeat) return;
+        if (!requireBossDefeat) return;
+        // Only a living-player boss kill from the Running state locks victory. The
+        // first terminal condition wins, so this is ignored if the run already ended.
+        if (state != GameState.Running) return;
         bossDefeated = true;
+        state = GameState.VictoryPending;
+        gameEnded = true; // freeze timer, damage, attacks, spawning, XP and level-ups at once
+        RecomputeTimeScale();
         StartCoroutine(BossVictoryRoutine());
     }
 
     public IEnumerator BossVictoryRoutine()
     {
-        // Brief realtime pause so the boss death reads before the result panel.
+        // Brief realtime delay so the boss death reads before the result panel. It
+        // runs on unscaled time, so it still elapses while gameplay is frozen.
         yield return new WaitForSecondsRealtime(GameBalance.Get("game.victory_delay", 1.5f));
-        if (!gameEnded) FinishGame(true);
+        if (state == GameState.VictoryPending) FinishGame(true);
     }
 
     public void EndGame()
     {
+        if (state != GameState.Running) return;
         EnemySpawner spawner = FindAnyObjectByType<EnemySpawner>();
-        bool canAdvance = !requireBossDefeat || spawner == null || !spawner.bossSpawned || spawner.bossDefeated;
-        bossDefeated = spawner != null && spawner.bossDefeated;
+        // Timeout only counts as a win when the boss actually spawned and was beaten;
+        // a missing spawner or an unspawned boss can never grant an automatic victory.
+        bool bossConfirmed = spawner != null && spawner.bossSpawned && spawner.bossDefeated;
+        bool canAdvance = !requireBossDefeat || bossConfirmed;
+        bossDefeated = bossConfirmed;
         FinishGame(canAdvance);
     }
-    public void HandleDeath() { FinishGame(false); }
+    public void HandleDeath()
+    {
+        // Player death only ends the run while it is still live. If the boss was
+        // already defeated (VictoryPending) the outcome is locked to a win.
+        if (state != GameState.Running) return;
+        FinishGame(false);
+    }
 
     public void FinishGame(bool won)
     {
-        if (gameEnded) return;
+        // Result fires exactly once; a settled Won/Lost can never be re-entered.
+        if (state == GameState.Won || state == GameState.Lost) return;
+        state = won ? GameState.Won : GameState.Lost;
         gameEnded = true;
         victory = won;
-        Time.timeScale = 0f;
+        RecomputeTimeScale();
         OnGameEnded?.Invoke(won);
     }
 
     public void RestartGame()
     {
-        Time.timeScale = 1f;
+        // Reset the speed baseline too, then clear through the shared entry so the
+        // reloaded scene starts unpaused at normal speed with no stale reasons.
+        baseTimeScale = 1f;
+        ClearAllPauses();
         SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
     }
 
@@ -169,7 +246,15 @@ public class GameManager : MonoBehaviour
     {
         if (playerStats != null) playerStats.OnDeath -= HandleDeath;
         if (levelUpManager != null) levelUpManager.OnUpgradeApplied -= HandleUpgradeApplied;
-        if (Instance == this) { Instance = null; Time.timeScale = 1f; }
+        // Clear the static handle BEFORE releasing, so anything still alive sees a
+        // null Instance instead of a half-destroyed one, and any component that
+        // releases a pause afterwards cannot reach a dead object.
+        if (Instance == this)
+        {
+            activePauses = PauseReason.None;
+            Instance = null;
+            Time.timeScale = 1f;
+        }
     }
 }
 // skill collection wired
