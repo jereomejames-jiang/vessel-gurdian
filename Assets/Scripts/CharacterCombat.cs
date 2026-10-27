@@ -40,9 +40,7 @@ public class CharacterCombat : MonoBehaviour
         spawner = FindAnyObjectByType<EnemySpawner>();
         skillCollection = FindAnyObjectByType<PlayerSkillCollection>();
         stats.OnLevelUp += HandleLevelUp;
-        SpriteRenderer renderer = GetComponent<SpriteRenderer>();
-        if (renderer != null) renderer.color = CharacterCatalog.Colors[(int)role];
-        MonsterSurvivorArtLibrary.ApplyPlayer(gameObject);
+        MonsterSurvivorArtLibrary.ApplyCharacter(gameObject, role);
         HandleLevelUp(stats.level);
     }
 

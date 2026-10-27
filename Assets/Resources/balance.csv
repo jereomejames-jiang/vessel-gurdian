@@ -194,7 +194,9 @@ Boss行为,boss.reinforce_hp_percent,0.5,半血增援触发比例
 Boss行为,boss.reinforce_count,2,半血增援破裂细胞数量
 Boss行为,boss.reinforce_offset,1.5,增援位置偏移半径
 刷怪,spawn.first_delay,0.6,首次刷怪延迟(秒)
-刷怪,spawn.radius,12,刷怪半径(玩家周围)
+刷怪,spawn.radius,14,刷怪半径(玩家周围)
+刷怪,spawn.horizontal_side_weight,0.78,普通刷怪优先从左右两侧出现的概率
+刷怪,spawn.side_angle_spread,0.38,左右刷怪方向的角度散布(弧度)
 刷怪,spawn.batch_min,2,普通每批最小数量
 刷怪,spawn.batch_max,4,普通每批最大数量
 刷怪,spawn.spike_batch,3,尖刺士兵每批固定数量

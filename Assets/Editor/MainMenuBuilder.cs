@@ -40,9 +40,6 @@ public class MainMenuBuilder : EditorWindow
         controller.startButton = FindButton(canvas.transform, "StartButton");
         controller.settingsButton = FindButton(canvas.transform, "SettingsButton");
         controller.codexButton = FindButton(canvas.transform, "CodexButton");
-        controller.achievementsButton = FindButton(canvas.transform, "AchievementsButton");
-        controller.quitButton = FindButton(canvas.transform, "QuitButton");
-        controller.statusText = FindText(canvas.transform, "StatusText");
 
         string menuPath = "Assets/Scenes/MainMenu.unity";
         EditorSceneManager.SaveScene(menuScene, menuPath);

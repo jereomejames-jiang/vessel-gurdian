@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
@@ -16,7 +17,12 @@ public static class MonsterSurvivorArtLibrary
     {
         if (string.IsNullOrEmpty(assetName)) return null;
         Sprite[] cached;
-        if (frameCache.TryGetValue(assetName, out cached)) return cached;
+        // Unity objects can be destroyed during Play Mode/domain reload while
+        // their managed references remain in this static cache (Unity fake-null).
+        // Rebuild the complete set whenever any cached frame has been destroyed.
+        if (frameCache.TryGetValue(assetName, out cached) && cached != null &&
+            cached.Length == 4 && Array.TrueForAll(cached, sprite => sprite != null))
+            return cached;
         cached = new Sprite[4];
         for (int i = 0; i < cached.Length; i++) cached[i] = MakeSprite(assetName + "_frame_" + i, assetName, i);
         frameCache[assetName] = cached;
@@ -27,7 +33,7 @@ public static class MonsterSurvivorArtLibrary
     {
         if (string.IsNullOrEmpty(assetName)) return null;
         Sprite cached;
-        if (singleCache.TryGetValue(assetName, out cached)) return cached;
+        if (singleCache.TryGetValue(assetName, out cached) && cached != null) return cached;
         cached = MakeSprite("single_" + assetName, assetName, 0);
         singleCache[assetName] = cached;
         return cached;
@@ -89,6 +95,39 @@ public static class MonsterSurvivorArtLibrary
         animator.SetFrames(frames, 9f);
     }
 
+    public static void ApplyMenuLightPoint(GameObject player)
+    {
+        ApplyCharacterFrames(player, "menu_light_point", Vector3.one * 0.78f, 7f);
+    }
+
+    public static void ApplyCharacter(GameObject player, CharacterRole role)
+    {
+        string style = role == CharacterRole.Nurse ? "character_nurse" :
+            (role == CharacterRole.Pharmacist ? "character_pharmacist" : "character_doctor");
+        ApplyCharacterFrames(player, style, Vector3.one * 1.65f, 5f);
+    }
+
+    static void ApplyCharacterFrames(GameObject player, string style, Vector3 scale, float frameRate)
+    {
+        if (player == null) return;
+        SpriteRenderer renderer = player.GetComponent<SpriteRenderer>();
+        if (renderer == null) renderer = player.AddComponent<SpriteRenderer>();
+        Sprite[] frames = LoadFrames(style);
+        if (frames == null || frames.Length == 0 || frames[0] == null)
+        {
+            renderer.enabled = true;
+            return;
+        }
+        renderer.enabled = true;
+        renderer.sprite = frames[0];
+        renderer.color = Color.white;
+        renderer.sortingOrder = 5;
+        player.transform.localScale = scale;
+        MonsterSurvivorSpriteAnimator animator = player.GetComponent<MonsterSurvivorSpriteAnimator>();
+        if (animator == null) animator = player.AddComponent<MonsterSurvivorSpriteAnimator>();
+        animator.SetFrames(frames, frameRate);
+    }
+
     public static void ApplyEnemy(GameObject enemyObject, EnemyKind kind)
     {
         if (enemyObject == null) return;
@@ -137,6 +176,20 @@ public static class MonsterSurvivorArtLibrary
             FillCircle(t, c, c, 27f * pulse, new Color(0.03f, 0.12f, 0.2f, 1f)); FillCircle(t, c, c + 2, 21f * pulse, new Color(0.18f, 0.82f, 1f, 1f));
             FillCircle(t, c, c + 2, 10f, new Color(0.92f, 0.24f, 0.38f, 1f)); Line(t, c - 18, c - 20, c + 18, c + 20, new Color(0.92f, 0.95f, 1f, 0.95f), 3); return;
         }
+        if (styleKey == "menu_light_point")
+        {
+            float breathe = frame % 2 == 0 ? 1f : 1.12f;
+            FillCircle(t, c, c, 30f * breathe, new Color(0.12f, 0.75f, 1f, 0.18f));
+            Ring(t, c, c, 22f * breathe, new Color(0.25f, 0.9f, 1f, 0.82f), 3);
+            FillCircle(t, c, c, 11f * breathe, new Color(0.42f, 0.94f, 1f, 1f));
+            FillCircle(t, c - 2, c + 3, 5f, new Color(0.94f, 1f, 1f, 1f));
+            return;
+        }
+        if (styleKey == "character_doctor" || styleKey == "character_nurse" || styleKey == "character_pharmacist")
+        {
+            DrawRoleCharacter(t, styleKey, frame, pulse);
+            return;
+        }
         if (styleKey.StartsWith("enemy_")) { DrawEnemy(t, styleKey, frame, pulse); return; }
         if (styleKey.StartsWith("ui_ab_")) { DrawIcon(t, styleKey.Substring(6)); return; }
         if (styleKey.StartsWith("ui_panel_")) { DrawRoundedPanel(t, styleKey.Contains("yellow") ? new Color(1f, 0.72f, 0.2f, 1f) : Color.white); return; }
@@ -144,6 +197,57 @@ public static class MonsterSurvivorArtLibrary
         if (styleKey.StartsWith("xp_")) { DrawExperienceGem(t, styleKey); return; }
         if (styleKey == "vfx_lightning_red" || styleKey == "vfx_lightning") { DrawLightning(t, styleKey == "vfx_lightning_red" ? new Color(1f, 0.18f, 0.25f, 1f) : new Color(0.35f, 0.9f, 1f, 1f)); return; }
         if (styleKey == "vfx_sun_spark") { FillCircle(t, c, c, 16f, new Color(1f, 0.86f, 0.28f, 1f)); for (int i = 0; i < 8; i++) { float a = i * Mathf.PI / 4f; Line(t, c, c, c + Mathf.Cos(a) * 35f, c + Mathf.Sin(a) * 35f, new Color(1f, 0.6f, 0.15f, 0.9f), 2); } }
+    }
+
+    static void DrawRoleCharacter(Texture2D t, string style, int frame, float pulse)
+    {
+        int c = t.width / 2;
+        Color outline = new Color(0.025f, 0.09f, 0.16f, 1f);
+        Color skin = new Color(1f, 0.72f, 0.56f, 1f);
+        bool nurse = style == "character_nurse";
+        bool pharmacist = style == "character_pharmacist";
+        Color coat = nurse ? new Color(0.94f, 0.48f, 0.68f, 1f) :
+            (pharmacist ? new Color(0.34f, 0.78f, 0.54f, 1f) : new Color(0.72f, 0.9f, 1f, 1f));
+        float sway = frame % 2 == 0 ? -2f : 2f;
+
+        // Full body silhouette, head and coat are deliberately distinct from
+        // the small light-point used before a role has been selected.
+        FillCircle(t, c, c - 12, 28f * pulse, outline);
+        FillRect(t, c - 19, c - 37, 38, 32, coat);
+        FillCircle(t, c - 15 + sway, c - 12, 12f, coat);
+        FillCircle(t, c + 15 - sway, c - 12, 12f, coat);
+        FillRect(t, c - 19, c - 38, 13, 8, new Color(0.12f, 0.3f, 0.4f, 1f));
+        FillRect(t, c + 6, c - 38, 13, 8, new Color(0.12f, 0.3f, 0.4f, 1f));
+        FillCircle(t, c, c + 15, 18f, skin);
+        FillCircle(t, c, c + 26, 18f, outline);
+        FillRect(t, c - 15, c + 18, 30, 10, skin);
+        FillRect(t, c - 13, c + 14, 26, 5, new Color(0.1f, 0.15f, 0.22f, 1f));
+        FillCircle(t, c - 6, c + 14, 2f, Color.white);
+        FillCircle(t, c + 6, c + 14, 2f, Color.white);
+        FillCircle(t, c - 6, c + 14, 1f, outline);
+        FillCircle(t, c + 6, c + 14, 1f, outline);
+
+        if (nurse)
+        {
+            FillRect(t, c - 17, c + 25, 34, 8, new Color(0.95f, 0.97f, 1f, 1f));
+            FillRect(t, c - 3, c + 24, 6, 11, new Color(0.95f, 0.24f, 0.34f, 1f));
+            FillRect(t, c - 6, c + 27, 12, 5, new Color(0.95f, 0.24f, 0.34f, 1f));
+            Line(t, c + 11, c - 4, c + 16, c - 14, new Color(0.1f, 0.7f, 0.72f, 1f), 3);
+        }
+        else if (pharmacist)
+        {
+            FillRect(t, c - 4, c - 28, 8, 23, new Color(0.88f, 0.97f, 1f, 1f));
+            FillRect(t, c - 7, c - 18, 14, 9, new Color(0.35f, 0.95f, 0.75f, 1f));
+            FillRect(t, c - 5, c - 5, 10, 8, new Color(0.95f, 0.72f, 0.28f, 1f));
+            Line(t, c - 11, c + 2, c + 11, c + 2, new Color(0.15f, 0.38f, 0.26f, 1f), 2);
+        }
+        else
+        {
+            FillRect(t, c - 3, c - 27, 6, 17, new Color(0.95f, 0.25f, 0.36f, 1f));
+            FillRect(t, c - 9, c - 21, 18, 5, new Color(0.95f, 0.25f, 0.36f, 1f));
+            Line(t, c - 8, c - 1, c, c - 9, new Color(0.18f, 0.36f, 0.48f, 1f), 2);
+            Line(t, c + 8, c - 1, c, c - 9, new Color(0.18f, 0.36f, 0.48f, 1f), 2);
+        }
     }
 
     static void DrawEnemy(Texture2D t, string kind, int frame, float pulse)

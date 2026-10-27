@@ -18,6 +18,9 @@ public class InfiniteBrickBackground : MonoBehaviour
     public Transform tileRoot;
     public int currentCellX;
     public int currentCellY;
+    float lastCoverageOrthoSize = -1f;
+    float lastCoverageAspect = -1f;
+    float scrollOffsetY;
 
     void Awake()
     {
@@ -29,7 +32,9 @@ public class InfiniteBrickBackground : MonoBehaviour
             PlayerController player = FindAnyObjectByType<PlayerController>();
             if (player != null) target = player.transform;
         }
-        BuildField();
+        // A menu preview assigns its independent scrolling target immediately
+        // after AddComponent. Defer field construction until that target exists.
+        if (target != null) BuildField();
     }
 
     void LateUpdate()
@@ -41,6 +46,8 @@ public class InfiniteBrickBackground : MonoBehaviour
         }
         if (target == null) return;
 
+        EnsureCameraCoverage();
+
         int nextCellX = Mathf.FloorToInt(target.position.x / brickWidth);
         int nextCellY = Mathf.FloorToInt(target.position.y / brickHeight);
         if (nextCellX != currentCellX || nextCellY != currentCellY)
@@ -49,6 +56,31 @@ public class InfiniteBrickBackground : MonoBehaviour
             currentCellY = nextCellY;
             LayoutField();
         }
+    }
+
+    void EnsureCameraCoverage()
+    {
+        Camera view = Camera.main;
+        if (view == null || !view.orthographic) return;
+        float aspect = Mathf.Max(0.5f, view.aspect);
+        if (Mathf.Abs(lastCoverageOrthoSize - view.orthographicSize) < 0.05f &&
+            Mathf.Abs(lastCoverageAspect - aspect) < 0.02f) return;
+        lastCoverageOrthoSize = view.orthographicSize;
+        lastCoverageAspect = aspect;
+
+        // Keep a comfortable margin around every camera edge. The recycled
+        // grid follows the target forever; dimensions only grow when the view
+        // becomes wider or more zoomed out than the original layout.
+        int neededColumns = Mathf.CeilToInt((view.orthographicSize * 2f * aspect + brickWidth * 4f) / brickWidth);
+        int neededRows = Mathf.CeilToInt((view.orthographicSize * 2f + brickHeight * 4f) / brickHeight);
+        neededColumns = Mathf.Max(columns, neededColumns);
+        neededRows = Mathf.Max(rows, neededRows);
+        if ((neededColumns & 1) == 0) neededColumns++;
+        if ((neededRows & 1) == 0) neededRows++;
+        if (neededColumns == columns && neededRows == rows) return;
+        columns = neededColumns;
+        rows = neededRows;
+        BuildField();
     }
 
     public void BuildField()
@@ -81,9 +113,30 @@ public class InfiniteBrickBackground : MonoBehaviour
         LayoutField();
     }
 
+    public void RefreshTheme()
+    {
+        if (brickSprite != null)
+        {
+            Texture2D oldTexture = brickSprite.texture;
+            Destroy(brickSprite);
+            if (oldTexture != null) Destroy(oldTexture);
+            brickSprite = null;
+        }
+        BuildField();
+    }
+
+    public void SetTheme(Color newBrickColor, Color newMortarColor)
+    {
+        brickColor = newBrickColor;
+        mortarColor = newMortarColor;
+        RefreshTheme();
+    }
+
     public void LayoutField()
     {
         if (tileRoot == null || target == null) return;
+        scrollOffsetY = 0f;
+        tileRoot.localPosition = Vector3.zero;
         int index = 0;
         int halfColumns = columns / 2;
         int halfRows = rows / 2;
@@ -95,9 +148,23 @@ public class InfiniteBrickBackground : MonoBehaviour
             {
                 int worldX = currentCellX + x - halfColumns;
                 Transform tile = tileRoot.GetChild(index++);
-                tile.position = new Vector3(worldX * brickWidth + rowOffset, worldY * brickHeight, transform.position.z);
+                tile.localPosition = new Vector3(worldX * brickWidth + rowOffset - transform.position.x,
+                    worldY * brickHeight - transform.position.y, 0f);
             }
         }
+    }
+
+    /// <summary>Scrolls a fixed camera background and recycles each passed row.</summary>
+    public void ScrollDown(float distance)
+    {
+        if (tileRoot == null || distance <= 0f || brickHeight <= 0f) return;
+        scrollOffsetY -= distance;
+        // The masonry pattern repeats every two rows (including the half-brick
+        // horizontal offset), so wrap the visual scroll phase instead of moving
+        // rows through the field. This keeps the camera coverage centered forever.
+        float repeatDistance = brickHeight * 2f;
+        while (scrollOffsetY <= -repeatDistance) scrollOffsetY += repeatDistance;
+        tileRoot.localPosition = new Vector3(0f, scrollOffsetY, 0f);
     }
 
     public Sprite CreateBrickSprite()

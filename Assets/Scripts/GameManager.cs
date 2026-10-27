@@ -149,20 +149,16 @@ public class GameManager : MonoBehaviour
 
         if (selectedLevel == 1)
         {
-            background.brickColor = new Color(0.16f, 0.075f, 0.12f, 1f);
-            background.mortarColor = new Color(0.035f, 0.018f, 0.035f, 1f);
+            background.SetTheme(new Color(0.16f, 0.075f, 0.12f, 1f), new Color(0.035f, 0.018f, 0.035f, 1f));
         }
         else if (selectedLevel == 2)
         {
-            background.brickColor = new Color(0.035f, 0.11f, 0.2f, 1f);
-            background.mortarColor = new Color(0.008f, 0.025f, 0.055f, 1f);
+            background.SetTheme(new Color(0.035f, 0.11f, 0.2f, 1f), new Color(0.008f, 0.025f, 0.055f, 1f));
         }
         else
         {
-            background.brickColor = new Color(0.2f, 0.045f, 0.055f, 1f);
-            background.mortarColor = new Color(0.045f, 0.008f, 0.012f, 1f);
+            background.SetTheme(new Color(0.2f, 0.045f, 0.055f, 1f), new Color(0.045f, 0.008f, 0.012f, 1f));
         }
-        background.BuildField();
     }
 
     void OnDestroy()

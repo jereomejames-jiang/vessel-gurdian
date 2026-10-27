@@ -7,6 +7,8 @@ public class EnemySpawner : MonoBehaviour
     public GameObject bossPrefab;
     public float spawnInterval = 1.0f;
     public float spawnRadius = 12f;
+    [Range(0f, 1f)] public float horizontalSideSpawnWeight = 0.78f;
+    public float sideSpawnAngleSpread = 0.38f;
     public Transform player;
     public float spawnTimer;
     public float stageElapsed;
@@ -29,6 +31,8 @@ public class EnemySpawner : MonoBehaviour
     public void Start()
     {
         spawnRadius = GameBalance.Get("spawn.radius", spawnRadius);
+        horizontalSideSpawnWeight = GameBalance.Get("spawn.horizontal_side_weight", horizontalSideSpawnWeight);
+        sideSpawnAngleSpread = GameBalance.Get("spawn.side_angle_spread", sideSpawnAngleSpread);
         bossTime = GameBalance.Get("spawn.boss_time", bossTime);
         cleanupInterval = GameBalance.Get("spawn.cleanup_interval", cleanupInterval);
         spikeClusterSize = GameBalance.GetInt("spawn.spike_batch", spikeClusterSize);
@@ -115,7 +119,8 @@ public class EnemySpawner : MonoBehaviour
         // A directional flood from one side — the classic survivor-genre pressure spike.
         int count = Random.Range(GameBalance.GetInt("spawn.surge_count_min", 8),
             GameBalance.GetInt("spawn.surge_count_base", 15) + stageIndex * GameBalance.GetInt("spawn.surge_count_per_stage", 2));
-        float baseAngle = Random.Range(0f, Mathf.PI * 2f);
+        Vector2 baseDirection = GetSpawnDirection();
+        float baseAngle = Mathf.Atan2(baseDirection.y, baseDirection.x);
         for (int i = 0; i < count && trackedEnemies.Count < maxActiveEnemies; i++)
         {
             float surgeAngle = GameBalance.Get("spawn.surge_angle", 0.55f);
@@ -175,9 +180,25 @@ public class EnemySpawner : MonoBehaviour
 
     public Vector3 GetSpawnPosition()
     {
-        float angle = Random.Range(0f, Mathf.PI * 2f);
-        Vector3 offset = new Vector3(Mathf.Cos(angle), Mathf.Sin(angle), 0f) * spawnRadius;
+        Vector2 direction = GetSpawnDirection();
+        Vector3 offset = new Vector3(direction.x, direction.y, 0f) * spawnRadius;
         return player.position + offset;
+    }
+
+    public Vector2 GetSpawnDirection()
+    {
+        float angle;
+        if (Random.value < horizontalSideSpawnWeight)
+        {
+            float side = Random.value < 0.5f ? 0f : Mathf.PI;
+            angle = side + Random.Range(-sideSpawnAngleSpread, sideSpawnAngleSpread);
+        }
+        else
+        {
+            float side = Random.value < 0.5f ? Mathf.PI * 0.5f : Mathf.PI * 1.5f;
+            angle = side + Random.Range(-sideSpawnAngleSpread, sideSpawnAngleSpread);
+        }
+        return new Vector2(Mathf.Cos(angle), Mathf.Sin(angle));
     }
 
     public GameObject SpawnSpecific(EnemyKind kind, Vector3 position)

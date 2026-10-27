@@ -6,43 +6,44 @@ using UnityEngine.EventSystems;
 
 public class MainMenuUI : MonoBehaviour
 {
+    public static MainMenuUI Instance;
     public string gameSceneName = "SampleScene";
     public Button startButton;
     public Button settingsButton;
     public Button codexButton;
-    public Button achievementsButton;
-    public Button quitButton;
-    public Text statusText;
-    public Font displayFont;
     public Button levelSelectButton;
+    public MainMenuBackground background;
+    public Font displayFont;
     public GameObject levelSelectPanel;
     public Button[] levelButtons;
     public Text levelSelectDescription;
     public Button levelBackButton;
     public int selectedLevel = 1;
-    public Button characterSelectButton;
     public GameObject characterSelectPanel;
+    public GameObject settingsPanel;
+    public Text settingsVolumeLabel;
     public Button[] characterButtons;
     public Text characterSelectDescription;
     public Button characterBackButton;
     public int selectedCharacter;
     public bool isLoadingGame;
-    public int fallbackClickFrame = -1;
+    public bool playerReadyForCharacterSelect;
 
     void Awake()
     {
+        Instance = this;
         Application.runInBackground = true;
         EnsureInputRouting();
+        Canvas mainCanvas = FindAnyObjectByType<Canvas>();
         if (startButton == null) startButton = FindButton("StartButton");
         if (settingsButton == null) settingsButton = FindButton("SettingsButton");
         if (codexButton == null) codexButton = FindButton("CodexButton");
-        if (achievementsButton == null) achievementsButton = FindButton("AchievementsButton");
-        if (quitButton == null) quitButton = FindButton("QuitButton");
-        if (statusText == null) statusText = FindText("StatusText");
+        if (levelSelectButton == null) levelSelectButton = FindButton("LevelSelectButton");
+        if (background == null) background = FindAnyObjectByType<MainMenuBackground>();
         selectedLevel = Mathf.Clamp(PlayerPrefs.GetInt("VesselGuard.SelectedLevel", 1), 1, 3);
         selectedCharacter = Mathf.Clamp(PlayerPrefs.GetInt(CharacterCatalog.PreferenceKey, 0), 0, 2);
+        AudioListener.volume = PlayerPrefs.GetFloat("VesselGuard.MasterVolume", 1f);
 
-        // WebGL 无系统字体，统一使用随包分发的 simhei
         displayFont = RuntimeFont.Get();
         if (displayFont != null)
         {
@@ -50,14 +51,15 @@ public class MainMenuUI : MonoBehaviour
         }
         EnsureLevelSelectView();
         EnsureCharacterSelectView();
+        EnsureForwardMotion(mainCanvas);
+        ApplyRequestedMenuLayout(mainCanvas);
         Text codexLabel = codexButton == null ? null : codexButton.GetComponentInChildren<Text>();
         if (codexLabel != null) codexLabel.text = "血管图鉴";
 
         if (startButton != null) startButton.onClick.AddListener(StartGame);
         if (settingsButton != null) settingsButton.onClick.AddListener(OpenSettingsPlaceholder);
         if (codexButton != null) codexButton.onClick.AddListener(OpenCodexPlaceholder);
-        if (achievementsButton != null) achievementsButton.onClick.AddListener(OpenAchievementsPlaceholder);
-        if (quitButton != null) quitButton.onClick.AddListener(QuitGame);
+        if (levelSelectButton != null) levelSelectButton.onClick.AddListener(OpenLevelSelect);
     }
 
     public void EnsureInputRouting()
@@ -84,56 +86,10 @@ public class MainMenuUI : MonoBehaviour
         inputModule.enabled = true;
     }
 
-    void OnGUI()
-    {
-        if (Event.current.type != EventType.MouseUp || Event.current.button != 0) return;
-        if (fallbackClickFrame == Time.frameCount) return;
-        Vector2 guiPosition = Event.current.mousePosition;
-        Button hit = FindTopmostFallbackButton(guiPosition);
-        if (hit == null) return;
-        fallbackClickFrame = Time.frameCount;
-        Event.current.Use();
-        hit.onClick.Invoke();
-    }
-
-    public Button FindTopmostFallbackButton(Vector2 guiPosition)
-    {
-        Canvas canvas = FindAnyObjectByType<Canvas>();
-        if (canvas == null) return null;
-        Button best = null;
-        int bestScore = -1;
-        Button[] buttons = canvas.GetComponentsInChildren<Button>(true);
-        for (int i = 0; i < buttons.Length; i++)
-        {
-            Button button = buttons[i];
-            if (!IsFallbackHit(button, guiPosition)) continue;
-            int score = 0;
-            Transform current = button.transform;
-            while (current != null && current != canvas.transform)
-            {
-                score = score * 100 + current.GetSiblingIndex() + 1;
-                current = current.parent;
-            }
-            if (score > bestScore)
-            {
-                bestScore = score;
-                best = button;
-            }
-        }
-        return best;
-    }
-    public bool IsFallbackHit(Button button, Vector2 guiPosition)
-    {
-        if (button == null || !button.gameObject.activeInHierarchy || !button.interactable) return false;
-        RectTransform rectTransform = button.transform as RectTransform;
-        if (rectTransform == null) return false;
-        Vector2 screenPosition = RectTransformUtility.WorldToScreenPoint(null, rectTransform.position);
-        Vector2 size = Vector2.Scale(rectTransform.rect.size, rectTransform.lossyScale);
-        Rect rect = new Rect(screenPosition.x - size.x * 0.5f, Screen.height - screenPosition.y - size.y * 0.5f, size.x, size.y);
-        return rect.Contains(guiPosition);
-    }
     void Update()
     {
+        if (settingsPanel != null && settingsPanel.activeSelf && Input.GetKeyDown(KeyCode.Escape))
+            settingsPanel.SetActive(false);
         if (levelSelectPanel != null && levelSelectPanel.activeSelf && Input.GetKeyDown(KeyCode.Escape))
             CloseLevelSelect();
         if (characterSelectPanel != null && characterSelectPanel.activeSelf && Input.GetKeyDown(KeyCode.Escape))
@@ -142,13 +98,18 @@ public class MainMenuUI : MonoBehaviour
 
     public void StartGame()
     {
-        if (isLoadingGame) return;
+        if (isLoadingGame || playerReadyForCharacterSelect) return;
         isLoadingGame = true;
-        PlayerPrefs.SetInt("VesselGuard.SelectedLevel", selectedLevel);
-        PlayerPrefs.SetInt(CharacterCatalog.PreferenceKey, selectedCharacter);
-        PlayerPrefs.Save();
-        if (levelSelectPanel != null) levelSelectPanel.SetActive(false);
-        if (!string.IsNullOrEmpty(gameSceneName)) SceneManager.LoadScene(gameSceneName);
+        if (background != null)
+            background.MoveToCenter();
+        else
+            OnPlayerArrivedAtCenter();
+    }
+
+    public void OnPlayerArrivedAtCenter()
+    {
+        playerReadyForCharacterSelect = true;
+        OpenCharacterSelect();
     }
 
     public void OpenLevelSelect()
@@ -171,6 +132,8 @@ public class MainMenuUI : MonoBehaviour
         PlayerPrefs.SetInt("VesselGuard.SelectedLevel", selectedLevel);
         PlayerPrefs.Save();
         RefreshLevelChoices();
+        if (background != null) background.RefreshSelectedLevelTheme();
+        PlaceButton(levelSelectButton, new Vector2(0f, -460f), new Vector2(260f, 60f), "选择关卡  ·  " + selectedLevel);
     }
 
     public void OpenCharacterSelect()
@@ -185,6 +148,12 @@ public class MainMenuUI : MonoBehaviour
     public void CloseCharacterSelect()
     {
         if (characterSelectPanel != null) characterSelectPanel.SetActive(false);
+        if (playerReadyForCharacterSelect)
+        {
+            playerReadyForCharacterSelect = false;
+            isLoadingGame = false;
+            if (background != null) background.MoveToStart();
+        }
     }
 
     public void SelectCharacter(int character)
@@ -192,19 +161,25 @@ public class MainMenuUI : MonoBehaviour
         selectedCharacter = Mathf.Clamp(character, 0, 2);
         PlayerPrefs.SetInt(CharacterCatalog.PreferenceKey, selectedCharacter);
         PlayerPrefs.Save();
+        if (background != null && background.playerTransform != null)
+            MonsterSurvivorArtLibrary.ApplyCharacter(background.playerTransform.gameObject, (CharacterRole)selectedCharacter);
         RefreshCharacterChoices();
+        StartCoroutine(LoadGameAfterDelay());
+    }
+
+    System.Collections.IEnumerator LoadGameAfterDelay()
+    {
+        yield return new WaitForSecondsRealtime(0.5f);
+        PlayerPrefs.SetInt("VesselGuard.SelectedLevel", selectedLevel);
+        if (levelSelectPanel != null) levelSelectPanel.SetActive(false);
+        if (characterSelectPanel != null) characterSelectPanel.SetActive(false);
+        if (!string.IsNullOrEmpty(gameSceneName)) SceneManager.LoadScene(gameSceneName);
     }
 
     public void EnsureCharacterSelectView()
     {
         Canvas canvas = FindAnyObjectByType<Canvas>();
         if (canvas == null) return;
-        if (characterSelectButton == null)
-        {
-            characterSelectButton = MakeButton(canvas.transform, "CharacterSelectButton", "选择角色",
-                new Vector2(0f, -215f), new Vector2(250f, 56f), new Color(0.24f, 0.32f, 0.46f, 1f));
-            characterSelectButton.onClick.AddListener(OpenCharacterSelect);
-        }
         if (characterSelectPanel != null)
         {
             RefreshCharacterChoices();
@@ -283,7 +258,63 @@ public class MainMenuUI : MonoBehaviour
 
     public void OpenSettingsPlaceholder()
     {
-        ShowPlaceholder("设置系统预留入口");
+        if (settingsPanel == null) EnsureSettingsView();
+        if (settingsPanel == null) return;
+        settingsPanel.SetActive(true);
+        settingsPanel.transform.SetAsLastSibling();
+        RefreshSettingsView();
+    }
+
+    void EnsureSettingsView()
+    {
+        Canvas canvas = FindAnyObjectByType<Canvas>();
+        if (canvas == null) return;
+        settingsPanel = new GameObject("SettingsPanel", typeof(RectTransform), typeof(Image));
+        settingsPanel.transform.SetParent(canvas.transform, false);
+        RectTransform full = settingsPanel.GetComponent<RectTransform>();
+        full.anchorMin = Vector2.zero;
+        full.anchorMax = Vector2.one;
+        full.offsetMin = full.offsetMax = Vector2.zero;
+        settingsPanel.GetComponent<Image>().color = new Color(0.005f, 0.018f, 0.035f, 0.88f);
+
+        GameObject content = new GameObject("SettingsContent", typeof(RectTransform), typeof(Image));
+        content.transform.SetParent(settingsPanel.transform, false);
+        RectTransform rect = content.GetComponent<RectTransform>();
+        rect.anchorMin = rect.anchorMax = Vector2.one * 0.5f;
+        rect.sizeDelta = new Vector2(580f, 390f);
+        content.GetComponent<Image>().color = new Color(0.025f, 0.09f, 0.14f, 0.98f);
+
+        Text title = MakeText(content.transform, "SettingsTitle", "设置", 36, TextAnchor.MiddleCenter,
+            new Vector2(0f, 135f), new Vector2(460f, 58f));
+        title.color = new Color(0.7f, 0.94f, 1f, 1f);
+        Text volumeTitle = MakeText(content.transform, "MasterVolumeTitle", "总音量", 24, TextAnchor.MiddleCenter,
+            new Vector2(0f, 55f), new Vector2(300f, 44f));
+        volumeTitle.color = new Color(0.78f, 0.86f, 0.94f, 1f);
+        settingsVolumeLabel = MakeText(content.transform, "MasterVolumeValue", "", 24, TextAnchor.MiddleCenter,
+            new Vector2(0f, 0f), new Vector2(180f, 44f));
+        Button quieter = MakeButton(content.transform, "VolumeDownButton", "−", new Vector2(-155f, 0f),
+            new Vector2(70f, 56f), new Color(0.12f, 0.22f, 0.32f, 1f));
+        Button louder = MakeButton(content.transform, "VolumeUpButton", "+", new Vector2(155f, 0f),
+            new Vector2(70f, 56f), new Color(0.12f, 0.22f, 0.32f, 1f));
+        quieter.onClick.AddListener(() => AdjustMasterVolume(-0.1f));
+        louder.onClick.AddListener(() => AdjustMasterVolume(0.1f));
+        Button close = MakeButton(content.transform, "SettingsCloseButton", "返回", new Vector2(0f, -125f),
+            new Vector2(220f, 58f), new Color(0.08f, 0.46f, 0.58f, 1f));
+        close.onClick.AddListener(() => settingsPanel.SetActive(false));
+        settingsPanel.SetActive(false);
+    }
+
+    void AdjustMasterVolume(float delta)
+    {
+        AudioListener.volume = Mathf.Clamp01(AudioListener.volume + delta);
+        PlayerPrefs.SetFloat("VesselGuard.MasterVolume", AudioListener.volume);
+        PlayerPrefs.Save();
+        RefreshSettingsView();
+    }
+
+    void RefreshSettingsView()
+    {
+        if (settingsVolumeLabel != null) settingsVolumeLabel.text = Mathf.RoundToInt(AudioListener.volume * 100f) + "%";
     }
 
     public void OpenCodexPlaceholder()
@@ -301,13 +332,6 @@ public class MainMenuUI : MonoBehaviour
     {
         Canvas canvas = FindAnyObjectByType<Canvas>();
         if (canvas == null) return;
-
-        if (levelSelectButton == null)
-        {
-            levelSelectButton = MakeButton(canvas.transform, "LevelSelectButton", "选择关卡",
-                new Vector2(0f, -145f), new Vector2(250f, 56f), new Color(0.18f, 0.34f, 0.48f, 1f));
-            levelSelectButton.onClick.AddListener(OpenLevelSelect);
-        }
 
         if (levelSelectPanel != null)
         {
@@ -421,16 +445,6 @@ public class MainMenuUI : MonoBehaviour
         rect.anchoredPosition = position;
     }
 
-    public void OpenAchievementsPlaceholder()
-    {
-        ShowPlaceholder("成就系统预留入口");
-    }
-
-    public void ShowPlaceholder(string message)
-    {
-        if (statusText != null) statusText.text = message;
-    }
-
     public void QuitGame()
     {
 #if UNITY_EDITOR
@@ -443,13 +457,123 @@ public class MainMenuUI : MonoBehaviour
     public Button FindButton(string objectName)
     {
         Transform child = FindChild(transform, objectName);
+        if (child == null)
+        {
+            GameObject global = GameObject.Find(objectName);
+            if (global != null) child = global.transform;
+        }
         return child == null ? null : child.GetComponent<Button>();
     }
 
-    public Text FindText(string objectName)
+    void EnsureForwardMotion(Canvas canvas)
     {
-        Transform child = FindChild(transform, objectName);
-        return child == null ? null : child.GetComponent<Text>();
+        if (background == null)
+        {
+            GameObject motion = GameObject.Find("MainMenuBackgroundMotion");
+            if (motion == null) motion = new GameObject("MainMenuBackgroundMotion");
+            background = motion.GetComponent<MainMenuBackground>();
+            if (background == null) background = motion.AddComponent<MainMenuBackground>();
+        }
+
+        GameObject hero = GameObject.Find("MainMenuPlayer");
+        if (hero == null)
+        {
+            hero = new GameObject("MainMenuPlayer");
+        }
+        MonsterSurvivorArtLibrary.ApplyMenuLightPoint(hero);
+        background.playerTransform = hero.transform;
+        background.playerSprite = hero.GetComponent<SpriteRenderer>();
+        background.initialPosition = new Vector3(0f, 1.45f, 0f);
+        background.centerPosition = Vector3.zero;
+    }
+
+    void ApplyRequestedMenuLayout(Canvas canvas)
+    {
+        if (canvas == null) return;
+        Image fullBackground = FindChild(canvas.transform, "Background")?.GetComponent<Image>();
+        if (fullBackground != null)
+        {
+            fullBackground.color = new Color(0.012f, 0.025f, 0.05f, 0f);
+            fullBackground.raycastTarget = false;
+        }
+        Image centerGlow = FindChild(canvas.transform, "CenterGlow")?.GetComponent<Image>();
+        if (centerGlow != null)
+        {
+            centerGlow.gameObject.SetActive(false);
+        }
+
+        PlaceText(canvas.transform, "GameTitle", new Vector2(0f, -78f), new Vector2(900f, 86f), 62);
+        PlaceText(canvas.transform, "GameSubtitle", new Vector2(0f, -150f), new Vector2(800f, 58f), 30);
+        PlaceText(canvas.transform, "GameDescription", new Vector2(0f, -202f), new Vector2(800f, 38f), 18);
+
+        PlaceButton(startButton, new Vector2(0f, -365f), new Vector2(360f, 84f), "开始游戏");
+        if (levelSelectButton == null && canvas != null)
+        {
+            levelSelectButton = MakeButton(canvas.transform, "LevelSelectButton", "选择关卡", Vector2.zero,
+                new Vector2(260f, 60f), new Color(0.12f, 0.22f, 0.32f, 0.96f));
+        }
+        PlaceButton(levelSelectButton, new Vector2(0f, -460f), new Vector2(260f, 60f), "选择关卡  ·  " + selectedLevel);
+        PlaceButton(settingsButton, new Vector2(-740f, -10f), new Vector2(420f, 140f), "设置");
+        PlaceButton(codexButton, new Vector2(740f, -10f), new Vector2(420f, 140f), "血管图鉴");
+
+        HideMenuObject(canvas.transform, "SystemTitle");
+        HideMenuObject(canvas.transform, "AchievementsButton");
+        HideMenuObject(canvas.transform, "QuitButton");
+        PlaceBottomText(canvas.transform, "StatusText", new Vector2(0f, 22f), new Vector2(900f, 34f), 15);
+    }
+
+    void PlaceText(Transform root, string objectName, Vector2 position, Vector2 size, int fontSize, bool topAnchored = true)
+    {
+        Transform target = FindChild(root, objectName);
+        if (target == null) return;
+        RectTransform rect = target.GetComponent<RectTransform>();
+        if (rect == null) return;
+        if (topAnchored)
+        {
+            rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 1f);
+            rect.pivot = new Vector2(0.5f, 0.5f);
+        }
+        else rect.anchorMin = rect.anchorMax = Vector2.one * 0.5f;
+        rect.sizeDelta = size;
+        rect.anchoredPosition = position;
+        Text label = target.GetComponent<Text>();
+        if (label != null) label.fontSize = fontSize;
+    }
+
+    void PlaceBottomText(Transform root, string objectName, Vector2 position, Vector2 size, int fontSize)
+    {
+        Transform target = FindChild(root, objectName);
+        if (target == null) return;
+        RectTransform rect = target.GetComponent<RectTransform>();
+        if (rect == null) return;
+        rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 0f);
+        rect.pivot = new Vector2(0.5f, 0.5f);
+        rect.sizeDelta = size;
+        rect.anchoredPosition = position;
+        Text label = target.GetComponent<Text>();
+        if (label != null) label.fontSize = fontSize;
+    }
+
+    void PlaceButton(Button button, Vector2 position, Vector2 size, string caption)
+    {
+        if (button == null) return;
+        RectTransform rect = button.GetComponent<RectTransform>();
+        rect.anchorMin = rect.anchorMax = Vector2.one * 0.5f;
+        rect.pivot = Vector2.one * 0.5f;
+        rect.sizeDelta = size;
+        rect.anchoredPosition = position;
+        Text label = button.GetComponentInChildren<Text>();
+        if (label != null)
+        {
+            label.text = caption;
+            label.fontSize = size.y < 70f ? 20 : (size.y >= 130f ? 34 : (size.y >= 100f ? 30 : 25));
+        }
+    }
+
+    void HideMenuObject(Transform root, string objectName)
+    {
+        Transform target = FindChild(root, objectName);
+        if (target != null) target.gameObject.SetActive(false);
     }
 
     public Transform FindChild(Transform parent, string objectName)
@@ -467,10 +591,9 @@ public class MainMenuUI : MonoBehaviour
 
     void OnDestroy()
     {
-        // displayFont 是共享资源（RuntimeFont），不能销毁
+        Instance = null;
     }
 }
-// codex menu wired
 
 
 

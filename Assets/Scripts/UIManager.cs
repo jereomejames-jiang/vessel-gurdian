@@ -87,6 +87,7 @@ public class UIManager : MonoBehaviour
         }
 
         if (LevelUpPanel != null) LevelUpPanel.SetActive(false);
+        ApplyGoldenHudLayout();
     }
 
     void OnEnable()
@@ -230,7 +231,7 @@ public class UIManager : MonoBehaviour
             {
                 buttonRect.anchorMin = buttonRect.anchorMax = new Vector2(0.5f, 0.5f);
                 buttonRect.pivot = new Vector2(0.5f, 0.5f);
-                buttonRect.sizeDelta = new Vector2(300f, 380f);
+                buttonRect.sizeDelta = new Vector2(300f, 486f);
                 buttonRect.anchoredPosition = new Vector2((i - 1) * 340f, 0f);
             }
 
@@ -433,7 +434,7 @@ public class UIManager : MonoBehaviour
         card.transform.SetParent(VictoryPanel.transform, false);
         RectTransform cardRect = card.GetComponent<RectTransform>();
         cardRect.anchorMin = cardRect.anchorMax = new Vector2(0.5f, 0.5f);
-        cardRect.sizeDelta = new Vector2(720f, 560f);
+        cardRect.sizeDelta = new Vector2(840f, 520f);
         MonsterSurvivorArtLibrary.ApplySliced(card.GetComponent<Image>(), "ui_window_background",
             new Color(0.035f, 0.075f, 0.12f, 0.99f));
 
@@ -495,6 +496,58 @@ public class UIManager : MonoBehaviour
         hudOutline.effectColor = new Color(0f, 0f, 0f, 0.4f);
         hudOutline.effectDistance = new Vector2(0.5f, 0.5f);
         hudOutline.useGraphicAlpha = false;
+    }
+
+    void ApplyGoldenHudLayout()
+    {
+        if (canvas == null) return;
+        const float phi = 1.618034f;
+
+        PlaceHudRect(LevelText == null ? null : LevelText.rectTransform,
+            new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(24f, -22f), new Vector2(300f, 72f));
+        PlaceHudRect(RunHudRoot,
+            new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -18f), new Vector2(618f, 48f));
+        PlaceHudRect(HPSlider == null ? null : HPSlider.GetComponent<RectTransform>(),
+            new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -76f), new Vector2(618f, 16f));
+        PlaceHudRect(TimerText == null ? null : TimerText.rectTransform,
+            new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -116f), new Vector2(340f, 34f));
+
+        RectTransform canvasRect = canvas.GetComponent<RectTransform>();
+        float referenceWidth = canvasRect == null ? 1920f : canvasRect.rect.width;
+        if (referenceWidth < 100f) referenceWidth = 1920f;
+        float bottomBarWidth = Mathf.Min(1180f, referenceWidth * 0.618034f);
+        PlaceHudRect(XPSlider == null ? null : XPSlider.GetComponent<RectTransform>(),
+            new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 22f), new Vector2(bottomBarWidth, 16f));
+
+        PlaceHudRect(pauseButton == null ? null : pauseButton.GetComponent<RectTransform>(),
+            Vector2.one, Vector2.one, new Vector2(-82f, -38f), new Vector2(126f, 52f));
+        PlaceHudRect(speedTestButton == null ? null : speedTestButton.GetComponent<RectTransform>(),
+            Vector2.one, Vector2.one, new Vector2(-222f, -38f), new Vector2(126f, 52f));
+        PlaceHudRect(invincibleTestButton == null ? null : invincibleTestButton.GetComponent<RectTransform>(),
+            Vector2.one, Vector2.one, new Vector2(-362f, -38f), new Vector2(126f, 52f));
+        Button codex = FindChild<Button>(canvas.transform, "CodexButton");
+        PlaceHudRect(codex == null ? null : codex.GetComponent<RectTransform>(),
+            Vector2.one, Vector2.one, new Vector2(-126f, -116f), new Vector2(220f, 54f));
+
+        // Upgrade cards keep a 1:φ portrait silhouette; the result card uses φ landscape.
+        if (choiceButtons != null)
+        {
+            for (int i = 0; i < choiceButtons.Length; i++)
+            {
+                if (choiceButtons[i] == null) continue;
+                RectTransform rect = choiceButtons[i].GetComponent<RectTransform>();
+                if (rect != null) rect.sizeDelta = new Vector2(300f, 300f * phi);
+            }
+        }
+    }
+
+    void PlaceHudRect(RectTransform rect, Vector2 anchor, Vector2 pivot, Vector2 position, Vector2 size)
+    {
+        if (rect == null) return;
+        rect.anchorMin = rect.anchorMax = anchor;
+        rect.pivot = pivot;
+        rect.sizeDelta = size;
+        rect.anchoredPosition = position;
     }
 
     public void UpdateRunHud()
