@@ -1,0 +1,20 @@
+数值管理工具（在 Excel 里改数值）
+
+文件说明
+  balance.xlsx        → 用 Excel 打开它来改数值（主文件）
+  export_balance.py   → 改完后运行它，把改动导回游戏
+  build_balance_xlsx.py → 一次性脚本，不用管（已用来生成 xlsx）
+
+三步用法
+  1. 用 Excel 打开 balance.xlsx，只改"数值"那一列
+     （"键名"列是代码读取的钥匙，千万别改）
+  2. 保存并关闭 Excel
+  3. 运行导出脚本：
+       终端里执行  python3 export_balance.py
+     它会把改动写成 balance.csv，并尝试自动写回
+     Assets/Resources/balance.csv（失败就手动复制）
+
+小贴士
+  - 每次只改一两个数，进游戏打一局感受，再继续调
+  - 改之前建议先备份，或用 git 记录，改砸了能回退
+  - Excel 顶部可以点筛选，按"分类"看某一块（比如只看"难度曲线"）
