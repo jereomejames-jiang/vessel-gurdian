@@ -15,6 +15,8 @@ public class PlayerStats : MonoBehaviour
     [HideInInspector] public float recoveryUntil;
     [HideInInspector] public float recoveryInterval = 2.5f;
     [HideInInspector] public bool membraneRegen;
+    [HideInInspector] public int stasisStacks;
+    [HideInInspector] public float rootUntil;
     float recoveryTimer;
     float lastDamageTime;
     float membraneRegenTimer;
@@ -146,6 +148,23 @@ public class PlayerStats : MonoBehaviour
             membraneRegen = true;
             lastDamageTime = Time.time;
         }
+    }
+    
+    public void AddStasisStack(int amount)
+    {
+        if (amount <= 0 || currentHP <= 0) return;
+        stasisStacks = Mathf.Max(0, stasisStacks + amount);
+    }
+    
+    public void RootPlayer(float duration)
+    {
+        if (duration <= 0f || currentHP <= 0) return;
+        rootUntil = Time.time + duration;
+    }
+    
+    public bool IsRooted()
+    {
+        return Time.time < rootUntil;
     }
 
     void NotifyAll()

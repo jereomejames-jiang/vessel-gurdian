@@ -26,6 +26,11 @@ public class CharacterCombat : MonoBehaviour
     public List<CharacterAttackEffect> hemostatPools = new List<CharacterAttackEffect>(3);
     public HashSet<Enemy> hookedEnemies = new HashSet<Enemy>();
     public float ablationBombTimer;
+    public float hemostatNetTimer;
+    public float spasmRingTimer;
+    public float ablationRainTimer;
+    public float electroknifeTimer;
+    public float microPumpTimer;
 
     public void Start() { Initialize(CharacterCatalog.SelectedRole); }
 
@@ -294,6 +299,150 @@ public class CharacterCombat : MonoBehaviour
                 ThrowAblationBombs(bomb);
             }
         }
+
+        // 进化技能：持续冲洗
+        int continuousFlush = GetVesselSkillLevel(UpgradeType.ContinuousFlush);
+        if (continuousFlush > 0 && flushNeedles.Count > 0)
+        {
+            float tickInterval = GameBalance.Get("evolution.rinse_continuous.tick", 0.05f);
+            float knockback = GameBalance.Get("evolution.rinse_continuous.knockback", 0.25f);
+            RefreshTargets();
+            for (int i = 0; i < flushNeedles.Count; i++)
+            {
+                for (int j = 0; j < targets.Count; j++)
+                {
+                    Enemy enemy = targets[j];
+                    if (enemy != null && (enemy.transform.position - flushNeedles[i].transform.position).sqrMagnitude < 0.5f)
+                    {
+                        enemy.ApplyKnockback((enemy.transform.position - transform.position).normalized, knockback);
+                    }
+                }
+            }
+        }
+
+        // 进化技能：超声解剖剪（已在基础解剖剪中处理Lv3十字释放）
+        
+        // 进化技能：血液回收钳（已在侧壁钳吸血中处理，溢出转护盾逻辑在TakeDamage中）
+        
+        // 进化技能：吻合钉枪（穿透效果在Bullet中处理）
+        
+        // 进化技能：栓塞止血网
+        int hemostatNet = GetVesselSkillLevel(UpgradeType.EmbolismHemostatNet);
+        if (hemostatNet > 0)
+        {
+            hemostatNetTimer -= Time.deltaTime;
+            if (hemostatNetTimer <= 0f)
+            {
+                hemostatNetTimer = 3f;
+                float radius = GameBalance.Get("evolution.clamp_magnet.radius", 2.5f);
+                float pullForce = GameBalance.Get("evolution.clamp_magnet.pull_force", 3f);
+                float duration = GameBalance.Get("evolution.clamp_magnet.duration", 2f);
+                RefreshTargets();
+                for (int i = 0; i < targets.Count; i++)
+                {
+                    Enemy enemy = targets[i];
+                    if (enemy != null && (enemy.transform.position - transform.position).sqrMagnitude < radius * radius)
+                    {
+                        Vector2 direction = (transform.position - enemy.transform.position).normalized;
+                        enemy.ApplyKnockback(direction, pullForce);
+                    }
+                }
+            }
+        }
+
+        // 进化技能：血管痉挛环
+        int spasmRing = GetVesselSkillLevel(UpgradeType.VascularSpasmRing);
+        if (spasmRing > 0)
+        {
+            spasmRingTimer -= Time.deltaTime;
+            if (spasmRingTimer <= 0f)
+            {
+                spasmRingTimer = 2f;
+                float slow = GameBalance.Get("evolution.coil_spasm.slow", 0.5f);
+                float dotMult = GameBalance.Get("evolution.coil_spasm.dot_mult", 2f);
+                float radius = GameBalance.Get("evolution.coil_spasm.radius", 3f);
+                RefreshTargets();
+                for (int i = 0; i < targets.Count; i++)
+                {
+                    Enemy enemy = targets[i];
+                    if (enemy != null && (enemy.transform.position - transform.position).sqrMagnitude < radius * radius)
+                    {
+                        enemy.ApplySlow(slow, 2f);
+                        enemy.TakeDamage(Mathf.Max(1, Mathf.CeilToInt(weapon.bulletDamage * dotMult)));
+                    }
+                }
+            }
+        }
+
+        // 进化技能：体外循环泵（激光吸血已在ThrombusCatheter中处理）
+        
+        // 进化技能：定向消融弹雨
+        int ablationRain = GetVesselSkillLevel(UpgradeType.DirectedAblationRain);
+        if (ablationRain > 0)
+        {
+            ablationRainTimer -= Time.deltaTime;
+            if (ablationRainTimer <= 0f)
+            {
+                ablationRainTimer = 3f;
+                int count = GameBalance.GetInt("evolution.ablation_rain.count", 5);
+                float radius = GameBalance.Get("evolution.ablation_rain.radius", 1.8f);
+                float delay = GameBalance.Get("evolution.ablation_rain.delay", 0.3f);
+                RefreshTargets();
+                for (int i = 0; i < count && i < targets.Count; i++)
+                {
+                    Enemy target = targets[i];
+                    if (target != null)
+                    {
+                        StartCoroutine(AblationRainStrike(target.transform.position, radius, delay * i));
+                    }
+                }
+            }
+        }
+
+        // 进化技能：高频电刀
+        int electroknife = GetVesselSkillLevel(UpgradeType.HighFrequencyElectroknife);
+        if (electroknife > 0)
+        {
+            electroknifeTimer -= Time.deltaTime;
+            if (electroknifeTimer <= 0f)
+            {
+                electroknifeTimer = 2.5f;
+                int damage = GameBalance.GetInt("evolution.slash_arc.damage", 5);
+                float range = GameBalance.Get("evolution.slash_arc.range", 3.5f);
+                float width = GameBalance.Get("evolution.slash_arc.width", 1.2f);
+                Vector2 aim = AimDirection();
+                CharacterAttackEffect.Sector(this, transform.position, aim, range, 120f, damage, false);
+            }
+        }
+
+        // 进化技能：微量输液泵
+        int microPump = GetVesselSkillLevel(UpgradeType.MicroInfusionPump);
+        if (microPump > 0)
+        {
+            microPumpTimer -= Time.deltaTime;
+            if (microPumpTimer <= 0f)
+            {
+                microPumpTimer = GameBalance.Get("evolution.needle_burst.interval", 0.15f);
+                int count = GameBalance.GetInt("evolution.needle_burst.count", 3);
+                for (int i = 0; i < count; i++)
+                {
+                    FireNeedles(AimDirection());
+                }
+            }
+        }
+
+        // 进化技能：雾化给药机
+        int atomizer = GetVesselSkillLevel(UpgradeType.AtomizationDrugMachine);
+        if (atomizer > 0)
+        {
+            // 药剂池最大数量增至3（已在pharmacist.pool_max中配置）
+        }
+    }
+
+    System.Collections.IEnumerator AblationRainStrike(Vector3 position, float radius, float delay)
+    {
+        yield return new WaitForSecondsRealtime(delay);
+        CharacterAttackEffect.Burst(this, position, radius, Mathf.Max(1, weapon.bulletDamage), true);
     }
 
     public void EnsureFlushNeedles(int count)

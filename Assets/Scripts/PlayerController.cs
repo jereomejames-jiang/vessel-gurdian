@@ -71,6 +71,14 @@ public class PlayerController : MonoBehaviour
     void FixedUpdate()
     {
         if (Time.timeScale <= 0f || rb == null) return;
+        
+        PlayerStats stats = GetComponent<PlayerStats>();
+        if (stats != null && stats.IsRooted())
+        {
+            currentThrottle = 0f;
+            return;
+        }
+        
         ApplyTurnInput(turnInput, Time.fixedDeltaTime);
         currentThrottle = autoMove ? 1f : 0f;
         // Always advance along the current heading; W/S have no effect.

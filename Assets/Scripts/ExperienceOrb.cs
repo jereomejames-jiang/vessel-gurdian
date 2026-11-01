@@ -79,6 +79,28 @@ public class ExperienceOrb : MonoBehaviour
         }
     }
 
+    // Boss 出场时停用：无视 timeScale 强制吸入全场经验球。
+    public void CollectImmediate()
+    {
+        if (collected) return;
+        if (playerStats == null)
+        {
+            if (player == null)
+            {
+                PlayerController controller = FindAnyObjectByType<PlayerController>();
+                if (controller != null) player = controller.transform;
+            }
+            if (player != null) playerStats = player.GetComponent<PlayerStats>();
+        }
+        collected = true;
+        if (playerStats != null)
+        {
+            playerStats.GainXP(xpValue);
+            if (GameManager.Instance != null) GameManager.Instance.RegisterExperienceCollected(xpValue);
+        }
+        Destroy(gameObject);
+    }
+
     void ApplySuctionTubeBonus()
     {
         CharacterCombat combat = FindAnyObjectByType<CharacterCombat>();

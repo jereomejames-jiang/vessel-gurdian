@@ -110,14 +110,11 @@ public class KnowledgeTicker : MonoBehaviour
         elapsed = 0f;
         scrolling = true;
         LayoutPlate();
-        overflowWidth = Mathf.Max(0f, label.preferredWidth - viewport.rect.width);
-        movingLabel.sizeDelta = new Vector2(Mathf.Max(viewport.rect.width, label.preferredWidth + 4f), 38f);
+        // 多行包裹展示，不再横向滚动；停留时长按文字量计算，保证可读。
+        overflowWidth = 0f;
         movingLabel.anchoredPosition = Vector2.zero;
-        // Read short text in place. Long text scrolls only after the entrance and a reading pause.
-        activeHoldSeconds = Mathf.Max(minimumReadSeconds,
-            Mathf.Min(Mathf.Max(1f, tickerDuration), Mathf.Max(1f, visibleSeconds)));
-        if (overflowWidth > 0f)
-            activeHoldSeconds = Mathf.Max(activeHoldSeconds, 2.4f + overflowWidth / Mathf.Max(10f, scrollSpeed));
+        int chars = string.IsNullOrEmpty(notice.body) ? 0 : notice.body.Length;
+        activeHoldSeconds = Mathf.Clamp(chars * 0.18f, minimumReadSeconds, 13f);
     }
 
     public void ApplyAppearance()
@@ -131,9 +128,6 @@ public class KnowledgeTicker : MonoBehaviour
         group.alpha = Mathf.SmoothStep(0f, 1f, p) * (1f - end);
         plate.anchoredPosition = new Vector2(0f, bottomMargin - 24f * (1f - eased) - 12f * end);
         plate.localScale = Vector3.one * (Mathf.LerpUnclamped(0.92f, 1f, pop) - 0.025f * end);
-        float bodyTime = Mathf.Max(0f, elapsed - enter - 1.5f);
-        float scroll = Mathf.Min(overflowWidth, bodyTime * Mathf.Max(10f, scrollSpeed));
-        movingLabel.anchoredPosition = new Vector2(-scroll, -4f * (1f - eased));
         Color flashColor = flash.color;
         flashColor.a = 0.24f * Mathf.Pow(1f - Mathf.Clamp01(elapsed / 0.85f), 2f);
         flash.color = flashColor;
@@ -166,13 +160,13 @@ public class KnowledgeTicker : MonoBehaviour
         plate = root.GetComponent<RectTransform>();
         plate.anchorMin = plate.anchorMax = new Vector2(0.5f, 0f);
         plate.pivot = new Vector2(0.5f, 0f);
-        plate.sizeDelta = new Vector2(panelWidth, 124f);
+        plate.sizeDelta = new Vector2(panelWidth, 180f);
         plate.anchoredPosition = new Vector2(0f, bottomMargin);
         group = root.GetComponent<CanvasGroup>();
         group.blocksRaycasts = false; group.interactable = false; group.alpha = 0f;
         KnowledgePlateGraphic frame = root.AddComponent<KnowledgePlateGraphic>();
         frame.raycastTarget = false;
-        RectTransform badge = MakeRect("SkillSeal", plate, new Vector2(70f, 78f), new Vector2(51f, 65f));
+        RectTransform badge = MakeRect("SkillSeal", plate, new Vector2(54f, 66f), new Vector2(46f, 132f));
         badge.anchorMin = badge.anchorMax = new Vector2(0f, 0f);
         badge.gameObject.AddComponent<CanvasRenderer>();
         emblem = badge.gameObject.AddComponent<KnowledgePlateGraphic>();
@@ -182,21 +176,24 @@ public class KnowledgeTicker : MonoBehaviour
         seal.rectTransform.anchorMin = seal.rectTransform.anchorMax = Vector2.one * 0.5f;
         seal.rectTransform.sizeDelta = new Vector2(50f, 60f);
 
-        skillTitle = MakeText("SkillTitle", plate, "", 23, new Color(1f, 0.86f, 0.52f));
+        skillTitle = MakeText("SkillTitle", plate, "", 24, new Color(1f, 0.86f, 0.52f));
         categoryText = MakeText("Category", plate, "技能科普 · 现实医学", 17, new Color(0.8f, 0.68f, 0.47f));
         categoryText.alignment = TextAnchor.MiddleRight;
 
-        viewport = MakeRect("ParchmentViewport", plate, new Vector2(750f, 38f), new Vector2(100f, 28f));
+        viewport = MakeRect("ParchmentViewport", plate, new Vector2(750f, 84f), new Vector2(80f, 50f));
         viewport.anchorMin = viewport.anchorMax = new Vector2(0f, 0f);
         viewport.pivot = new Vector2(0f, 0.5f);
         viewport.gameObject.AddComponent<RectMask2D>();
-        label = MakeText("TickerText", viewport, "", 23, new Color(0.22f, 0.13f, 0.07f));
+        label = MakeText("TickerText", viewport, "", 19, new Color(0.22f, 0.13f, 0.07f));
         movingLabel = label.rectTransform;
-        movingLabel.anchorMin = movingLabel.anchorMax = new Vector2(0f, 0.5f);
-        movingLabel.pivot = new Vector2(0f, 0.5f);
-        label.horizontalOverflow = HorizontalWrapMode.Overflow;
+        label.alignment = TextAnchor.UpperLeft;
+        label.horizontalOverflow = HorizontalWrapMode.Wrap;
+        label.verticalOverflow = VerticalWrapMode.Truncate;
+        movingLabel.anchorMin = Vector2.zero; movingLabel.anchorMax = Vector2.one;
+        movingLabel.pivot = new Vector2(0.5f, 0.5f);
+        movingLabel.offsetMin = new Vector2(6f, 4f); movingLabel.offsetMax = new Vector2(-6f, -4f);
 
-        RectTransform gleam = MakeRect("SelectionGlow", plate, new Vector2(panelWidth - 24f, 42f), new Vector2(0f, 88f));
+        RectTransform gleam = MakeRect("SelectionGlow", plate, new Vector2(panelWidth - 24f, 42f), new Vector2(0f, 140f));
         flash = gleam.gameObject.AddComponent<Image>();
         flash.color = new Color(1f, 0.85f, 0.48f, 0f);
         flash.raycastTarget = false;
@@ -207,12 +204,12 @@ public class KnowledgeTicker : MonoBehaviour
     {
         float canvasWidth = ((RectTransform)canvas.transform).rect.width;
         renderedWidth = Mathf.Max(240f, Mathf.Min(panelWidth, canvasWidth - 32f));
-        plate.sizeDelta = new Vector2(renderedWidth, 124f);
-        viewport.sizeDelta = new Vector2(Mathf.Max(100f, renderedWidth - 135f), 38f);
+        plate.sizeDelta = new Vector2(renderedWidth, 180f);
+        viewport.sizeDelta = new Vector2(Mathf.Max(100f, renderedWidth - 130f), 84f);
         bool showCategory = renderedWidth >= 620f;
         categoryText.gameObject.SetActive(showCategory);
-        SetTextRect(skillTitle, new Vector2(100f, 88f), new Vector2(Mathf.Max(80f, renderedWidth - (showCategory ? 340f : 135f)), 38f));
-        SetTextRect(categoryText, new Vector2(renderedWidth - 221f, 88f), new Vector2(185f, 32f));
+        SetTextRect(skillTitle, new Vector2(100f, 138f), new Vector2(Mathf.Max(80f, renderedWidth - (showCategory ? 340f : 135f)), 40f));
+        SetTextRect(categoryText, new Vector2(renderedWidth - 221f, 138f), new Vector2(185f, 32f));
         flash.rectTransform.sizeDelta = new Vector2(renderedWidth - 24f, 40f);
     }
 

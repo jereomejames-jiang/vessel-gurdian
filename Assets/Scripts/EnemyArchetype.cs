@@ -8,6 +8,10 @@ public enum EnemyKind
     RupturedCell,
     MicroThrombus,
     BleedingGap,
+    VenousStasis,
+    FibrinNet,
+    PrimitiveCell,
+    TargetBlocker,
     NodeBoss
 }
 
@@ -87,6 +91,22 @@ public class EnemyArchetype : MonoBehaviour
                 bleedingGapRadius = GameBalance.Get(prefix + "zone_radius", bleedingGapRadius);
                 transform.localScale = Vector3.one * 1.25f;
                 break;
+            case EnemyKind.VenousStasis:
+                baseHP = 5; hpPerStage = 2; baseSpeed = 2.2f; speedPerStage = 0.15f; damage = 1; xp = 4;
+                transform.localScale = Vector3.one * 0.85f;
+                break;
+            case EnemyKind.FibrinNet:
+                baseHP = 6; hpPerStage = 2; baseSpeed = 1.8f; speedPerStage = 0.12f; damage = 1; xp = 5;
+                transform.localScale = Vector3.one * 0.95f;
+                break;
+            case EnemyKind.PrimitiveCell:
+                baseHP = 4; hpPerStage = 2; baseSpeed = 2f; speedPerStage = 0.15f; damage = 2; xp = 5;
+                transform.localScale = Vector3.one * 0.8f;
+                break;
+            case EnemyKind.TargetBlocker:
+                baseHP = 8; hpPerStage = 3; baseSpeed = 1.5f; speedPerStage = 0.1f; damage = 2; xp = 7;
+                transform.localScale = Vector3.one * 1.1f;
+                break;
             case EnemyKind.NodeBoss:
                 baseHP = 34; hpPerStage = 12; baseSpeed = 0.7f; speedPerStage = 0.08f; damage = 3; xp = 20;
                 transform.localScale = Vector3.one * 2.2f;
@@ -106,6 +126,40 @@ public class EnemyArchetype : MonoBehaviour
             ownedHazard = VesselHazardZone.Create(transform.position, bleedingGapRadius,
                 GameBalance.GetInt(prefix + "zone_damage", 1), GameBalance.Get(prefix + "zone_slow", 0.55f),
                 gameObject, 9999f, GameBalance.Get(prefix + "zone_tick", 1f));
+        
+        // 静脉淤血：接触玩家时叠加淤滞层数
+        if (kind == EnemyKind.VenousStasis)
+        {
+            enemy.stasisOnContact = true;
+            enemy.stasisStacksOnContact = GameBalance.GetInt(prefix + "stasis_stacks", 1);
+        }
+        
+        // 纤维蛋白网：死亡时创建减速区
+        if (kind == EnemyKind.FibrinNet)
+        {
+            enemy.createNetOnDeath = true;
+            enemy.netRadius = GameBalance.Get(prefix + "net_radius", 2.5f);
+            enemy.netDuration = GameBalance.Get(prefix + "net_duration", 4f);
+            enemy.netSlow = GameBalance.Get(prefix + "net_slow", 0.5f);
+        }
+        
+        // 原始细胞：存活时间越长复制越快
+        if (kind == EnemyKind.PrimitiveCell)
+        {
+            enemy.cloneIntervalBase = GameBalance.Get(prefix + "clone_interval_base", 8f);
+            enemy.cloneIntervalMin = GameBalance.Get(prefix + "clone_interval_min", 2f);
+            enemy.cloneAccel = GameBalance.Get(prefix + "clone_accel", 0.85f);
+            enemy.cloneHpMult = GameBalance.Get(prefix + "clone_hp_mult", 0.6f);
+            enemy.isPrimitiveCell = true;
+        }
+        
+        // 靶点遮蔽者：周围敌人免疫暴击
+        if (kind == EnemyKind.TargetBlocker)
+        {
+            enemy.auraRadius = GameBalance.Get(prefix + "aura_radius", 3f);
+            enemy.auraDuration = GameBalance.Get(prefix + "aura_duration", 1.5f);
+            enemy.isTargetBlocker = true;
+        }
     }
 
     public string ConfigKey()
@@ -116,6 +170,10 @@ public class EnemyArchetype : MonoBehaviour
             case EnemyKind.RupturedCell: return "ruptured";
             case EnemyKind.MicroThrombus: return "thrombus";
             case EnemyKind.BleedingGap: return "bleeding";
+            case EnemyKind.VenousStasis: return "stasis";
+            case EnemyKind.FibrinNet: return "fibrin";
+            case EnemyKind.PrimitiveCell: return "primitive";
+            case EnemyKind.TargetBlocker: return "blocker";
             case EnemyKind.NodeBoss: return "boss";
             default: return "cell";
         }
@@ -133,6 +191,10 @@ public class EnemyArchetype : MonoBehaviour
             case EnemyKind.RupturedCell: tint = new Color(0.95f, 0.18f, 0.28f, 1f); break;
             case EnemyKind.MicroThrombus: tint = new Color(0.56f, 0.22f, 0.78f, 1f); break;
             case EnemyKind.BleedingGap: tint = new Color(1f, 0.12f, 0.52f, 1f); break;
+            case EnemyKind.VenousStasis: tint = new Color(0.4f, 0.2f, 0.6f, 1f); break;
+            case EnemyKind.FibrinNet: tint = new Color(0.7f, 0.7f, 0.8f, 1f); break;
+            case EnemyKind.PrimitiveCell: tint = new Color(0.3f, 0.8f, 0.4f, 1f); break;
+            case EnemyKind.TargetBlocker: tint = new Color(0.2f, 0.2f, 0.3f, 1f); break;
             case EnemyKind.NodeBoss: tint = new Color(0.28f, 0.06f, 0.34f, 1f); break;
         }
         spriteRenderer.color = tint;

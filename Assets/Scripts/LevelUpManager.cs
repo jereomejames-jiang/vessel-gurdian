@@ -17,6 +17,8 @@ public class LevelUpManager : MonoBehaviour
     public bool subscribed;
     public bool isChoosing;
     public int pendingLevels;
+    // Boss 出场演出期间累计升级但不弹卡，演出结束后再统一展示。
+    public bool deferChoices;
 
     void OnEnable() { Subscribe(); }
     void Start() { Subscribe(); }
@@ -58,7 +60,12 @@ public class LevelUpManager : MonoBehaviour
     {
         if (GameManager.Instance != null && GameManager.Instance.gameEnded) return;
         pendingLevels++;
-        if (!isChoosing) ShowNextChoices();
+        if (!isChoosing && !deferChoices) ShowNextChoices();
+    }
+
+    public void ResumeDeferredChoices()
+    {
+        if (!isChoosing && pendingLevels > 0) ShowNextChoices();
     }
 
     public void ShowNextChoices()
@@ -133,15 +140,8 @@ public class LevelUpManager : MonoBehaviour
         else { OnChoicesClosed?.Invoke(); }
         OnUpgradeApplied?.Invoke(option);
 
-        // Finish queued choices before showing a reveal or releasing the pause.
-        if (isChoosing) return;
-
-        SkillCardDefinition card = null;
-        if (option.skillCard != null) card = option.skillCard;
-        else if (SkillCodexManager.Instance != null) card = SkillCodexManager.Instance.GetCardFor(option);
-        if (card != null && CardRevealUI.Instance != null && CardRevealUI.Instance.revealPanel != null)
-            CardRevealUI.Instance.Show(card, previousSkillLevel, nextSkillLevel);
-        else if (GameManager.Instance == null || !GameManager.Instance.gameEnded)
+        // 取消选卡牌后摇：直接恢复游戏，不显示卡牌翻转动画
+        if (GameManager.Instance == null || !GameManager.Instance.gameEnded)
         {
             UIManager testUI = FindAnyObjectByType<UIManager>();
             Time.timeScale = testUI != null && testUI.speedSixX ? testUI.testSpeedMultiplier : 1f;

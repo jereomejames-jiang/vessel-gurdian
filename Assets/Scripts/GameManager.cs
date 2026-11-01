@@ -89,6 +89,11 @@ public class GameManager : MonoBehaviour
     {
         enemiesDefeated++;
         OnRunStatsChanged?.Invoke();
+        if (enemy != null && SkillCodexManager.Instance != null)
+        {
+            EnemyArchetype archetype = enemy.GetComponent<EnemyArchetype>();
+            if (archetype != null) SkillCodexManager.Instance.UnlockEnemy(archetype.kind);
+        }
     }
     public void RegisterExperienceCollected(int amount)
     {

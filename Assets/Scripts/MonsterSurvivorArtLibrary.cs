@@ -59,6 +59,18 @@ public static class MonsterSurvivorArtLibrary
             case UpgradeType.ThrombusCatheter: return LoadSingle("ui_ab_magnet");
             case UpgradeType.SuctionTube: return LoadSingle("ui_ab_suction");
             case UpgradeType.AblationBomb: return LoadSingle("ui_ab_bomb");
+            // 进化技能图标
+            case UpgradeType.ContinuousFlush: return LoadSingle("ui_ab_lightning");
+            case UpgradeType.UltrasonicScissors: return LoadSingle("ui_ab_sword");
+            case UpgradeType.BloodRecoveryForceps: return LoadSingle("ui_ab_heal");
+            case UpgradeType.StapleGun: return LoadSingle("ui_ab_lightning");
+            case UpgradeType.EmbolismHemostatNet: return LoadSingle("ui_ab_magnet");
+            case UpgradeType.VascularSpasmRing: return LoadSingle("ui_ab_thunder_ring");
+            case UpgradeType.ExtracorporealPump: return LoadSingle("ui_ab_magnet");
+            case UpgradeType.DirectedAblationRain: return LoadSingle("ui_ab_bomb");
+            case UpgradeType.HighFrequencyElectroknife: return LoadSingle("ui_ab_sword");
+            case UpgradeType.MicroInfusionPump: return LoadSingle("ui_ab_lightning");
+            case UpgradeType.AtomizationDrugMachine: return LoadSingle("ui_ab_bomb");
         }
         return null;
     }
@@ -72,6 +84,10 @@ public static class MonsterSurvivorArtLibrary
             case EnemyKind.RupturedCell: return "enemy_pumpkin";
             case EnemyKind.MicroThrombus: return "enemy_eye";
             case EnemyKind.BleedingGap: return "enemy_jellyfish";
+            case EnemyKind.VenousStasis: return "enemy_slime";
+            case EnemyKind.FibrinNet: return "enemy_jellyfish";
+            case EnemyKind.PrimitiveCell: return "enemy_pumpkin";
+            case EnemyKind.TargetBlocker: return "enemy_eye";
             case EnemyKind.NodeBoss: return "enemy_mega_slime";
         }
         return "enemy_slime";
@@ -160,9 +176,9 @@ public static class MonsterSurvivorArtLibrary
 
     static Sprite MakeSprite(string key, string styleKey, int frame)
     {
-        int size = styleKey.StartsWith("ui_") ? 64 : 96;
+        int size = styleKey.StartsWith("ui_") ? 128 : 96;
         Texture2D texture = new Texture2D(size, size, TextureFormat.RGBA32, false);
-        texture.name = "OriginalSurvivorArt_" + key; texture.filterMode = FilterMode.Point; texture.wrapMode = TextureWrapMode.Clamp;
+        texture.name = "OriginalSurvivorArt_" + key; texture.filterMode = FilterMode.Bilinear; texture.wrapMode = TextureWrapMode.Clamp;
         texture.SetPixels(new Color[size * size]); DrawStyle(texture, styleKey, frame); texture.Apply();
         Sprite sprite = Sprite.Create(texture, new Rect(0f, 0f, size, size), new Vector2(0.5f, 0.5f), size);
         sprite.name = "OriginalSurvivorArt_" + key; return sprite;
@@ -263,59 +279,60 @@ public static class MonsterSurvivorArtLibrary
 
     static void DrawIcon(Texture2D t, string icon)
     {
-        int c = t.width / 2; Color cyan = new Color(0.35f, 0.9f, 1f, 1f); Color gold = new Color(1f, 0.72f, 0.2f, 1f);
+        int c = t.width / 2; float s = t.width / 64f; // Scale factor for 128px textures
+        Color cyan = new Color(0.35f, 0.9f, 1f, 1f); Color gold = new Color(1f, 0.72f, 0.2f, 1f);
         if (icon.Contains("shield"))
         {
-            Ring(t, c, c, 24f, cyan, 6);
-            Ring(t, c, c, 18f, new Color(0.55f, 0.95f, 1f, 0.6f), 3);
-            FillCircle(t, c, c, 8f, new Color(0.08f, 0.22f, 0.36f, 1f));
+            Ring(t, c, c, 24f * s, cyan, (int)(6 * s));
+            Ring(t, c, c, 18f * s, new Color(0.55f, 0.95f, 1f, 0.6f), (int)(3 * s));
+            FillCircle(t, c, c, 8f * s, new Color(0.08f, 0.22f, 0.36f, 1f));
         }
         else if (icon.Contains("lightning")) DrawLightning(t, gold);
         else if (icon.Contains("sword"))
         {
-            Line(t, c - 22f, c - 22f, c + 22f, c + 22f, Color.white, 7);
-            Line(t, c - 22f, c + 22f, c - 8f, c + 10f, gold, 5);
-            Line(t, c + 8f, c - 10f, c + 22f, c - 22f, new Color(0.85f, 0.65f, 0.15f, 1f), 4);
+            Line(t, c - 22f * s, c - 22f * s, c + 22f * s, c + 22f * s, Color.white, (int)(7 * s));
+            Line(t, c - 22f * s, c + 22f * s, c - 8f * s, c + 10f * s, gold, (int)(5 * s));
+            Line(t, c + 8f * s, c - 10f * s, c + 22f * s, c - 22f * s, new Color(0.85f, 0.65f, 0.15f, 1f), (int)(4 * s));
         }
         else if (icon.Contains("heal"))
         {
-            FillRect(t, c - 5, c - 24, 10, 48, new Color(0.3f, 1f, 0.55f, 1f));
-            FillRect(t, c - 24, c - 5, 48, 10, new Color(0.3f, 1f, 0.55f, 1f));
-            FillCircle(t, c, c, 4f, new Color(0.8f, 1f, 0.9f, 1f));
+            FillRect(t, c - (int)(5 * s), c - (int)(24 * s), (int)(10 * s), (int)(48 * s), new Color(0.3f, 1f, 0.55f, 1f));
+            FillRect(t, c - (int)(24 * s), c - (int)(5 * s), (int)(48 * s), (int)(10 * s), new Color(0.3f, 1f, 0.55f, 1f));
+            FillCircle(t, c, c, 4f * s, new Color(0.8f, 1f, 0.9f, 1f));
         }
         else if (icon.Contains("thunder"))
         {
-            Ring(t, c, c, 24f, new Color(0.95f, 0.4f, 1f, 1f), 6);
-            Ring(t, c, c, 18f, new Color(0.85f, 0.6f, 0.95f, 0.5f), 3);
+            Ring(t, c, c, 24f * s, new Color(0.95f, 0.4f, 1f, 1f), (int)(6 * s));
+            Ring(t, c, c, 18f * s, new Color(0.85f, 0.6f, 0.95f, 0.5f), (int)(3 * s));
         }
         else if (icon.Contains("magnet"))
         {
-            Ring(t, c, c, 20f, new Color(1f, 0.35f, 0.45f, 1f), 6);
-            FillRect(t, c - 3, c - 24, 6, 12, Color.white);
-            FillCircle(t, c, c - 24f, 3f, new Color(1f, 0.8f, 0.3f, 1f));
+            Ring(t, c, c, 20f * s, new Color(1f, 0.35f, 0.45f, 1f), (int)(6 * s));
+            FillRect(t, c - (int)(3 * s), c - (int)(24 * s), (int)(6 * s), (int)(12 * s), Color.white);
+            FillCircle(t, c, c - 24f * s, 3f * s, new Color(1f, 0.8f, 0.3f, 1f));
         }
         else if (icon.Contains("suction"))
         {
-            Ring(t, c, c, 22f, new Color(0.45f, 0.82f, 0.95f, 1f), 5);
-            FillCircle(t, c, c, 10f, new Color(0.15f, 0.45f, 0.65f, 1f));
+            Ring(t, c, c, 22f * s, new Color(0.45f, 0.82f, 0.95f, 1f), (int)(5 * s));
+            FillCircle(t, c, c, 10f * s, new Color(0.15f, 0.45f, 0.65f, 1f));
             for (int i = 0; i < 6; i++)
             {
                 float a = i * Mathf.PI / 3f + 0.3f;
-                float ix = c + Mathf.Cos(a) * 20f;
-                float iy = c + Mathf.Sin(a) * 20f;
-                Line(t, ix, iy, c + Mathf.Cos(a) * 11f, c + Mathf.Sin(a) * 11f, new Color(0.65f, 0.95f, 1f, 0.9f), 3);
+                float ix = c + Mathf.Cos(a) * 20f * s;
+                float iy = c + Mathf.Sin(a) * 20f * s;
+                Line(t, ix, iy, c + Mathf.Cos(a) * 11f * s, c + Mathf.Sin(a) * 11f * s, new Color(0.65f, 0.95f, 1f, 0.9f), (int)(3 * s));
             }
         }
         else if (icon.Contains("bomb"))
         {
-            FillCircle(t, c, c + 2f, 20f, new Color(0.25f, 0.12f, 0.08f, 1f));
-            FillCircle(t, c, c + 2f, 16f, new Color(0.95f, 0.45f, 0.15f, 1f));
-            FillCircle(t, c - 4f, c - 2f, 5f, new Color(1f, 0.85f, 0.4f, 0.6f));
-            Line(t, c + 2f, c - 14f, c + 6f, c - 24f, new Color(1f, 0.82f, 0.2f, 1f), 3);
-            FillCircle(t, c + 7f, c - 25f, 5f, new Color(1f, 0.92f, 0.3f, 1f));
-            FillCircle(t, c + 7f, c - 25f, 3f, new Color(1f, 1f, 0.7f, 1f));
+            FillCircle(t, c, c + 2f * s, 20f * s, new Color(0.25f, 0.12f, 0.08f, 1f));
+            FillCircle(t, c, c + 2f * s, 16f * s, new Color(0.95f, 0.45f, 0.15f, 1f));
+            FillCircle(t, c - 4f * s, c - 2f * s, 5f * s, new Color(1f, 0.85f, 0.4f, 0.6f));
+            Line(t, c + 2f * s, c - 14f * s, c + 6f * s, c - 24f * s, new Color(1f, 0.82f, 0.2f, 1f), (int)(3 * s));
+            FillCircle(t, c + 7f * s, c - 25f * s, 5f * s, new Color(1f, 0.92f, 0.3f, 1f));
+            FillCircle(t, c + 7f * s, c - 25f * s, 3f * s, new Color(1f, 1f, 0.7f, 1f));
         }
-        else FillCircle(t, c, c, 18f, cyan);
+        else FillCircle(t, c, c, 18f * s, cyan);
     }
 
     static void DrawExperienceGem(Texture2D t, string kind)
@@ -338,11 +355,11 @@ public static class MonsterSurvivorArtLibrary
 
     static void DrawLightning(Texture2D t, Color color)
     {
-        int c = t.width / 2;
-        Line(t, c - 14f, t.height - 14f, c + 5f, c + 6f, color, 7);
-        Line(t, c + 5f, c + 6f, c - 9f, c + 6f, color, 7);
-        Line(t, c - 9f, c + 6f, c + 16f, 14f, color, 7);
-        Line(t, c - 10f, t.height - 10f, c + 3f, c + 8f, new Color(color.r, color.g, color.b, 0.4f), 3);
+        int c = t.width / 2; float s = t.width / 64f;
+        Line(t, c - 14f * s, t.height - 14f * s, c + 5f * s, c + 6f * s, color, (int)(7 * s));
+        Line(t, c + 5f * s, c + 6f * s, c - 9f * s, c + 6f * s, color, (int)(7 * s));
+        Line(t, c - 9f * s, c + 6f * s, c + 16f * s, 14f * s, color, (int)(7 * s));
+        Line(t, c - 10f * s, t.height - 10f * s, c + 3f * s, c + 8f * s, new Color(color.r, color.g, color.b, 0.4f), (int)(3 * s));
     }
 
     static void FillCircle(Texture2D t, float cx, float cy, float radius, Color color)

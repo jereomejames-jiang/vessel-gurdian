@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -27,6 +28,7 @@ public class EnemySpawner : MonoBehaviour
     public float surgeTimer = 20f;
     public int packSizeMin = 2;
     public int packSizeMax = 4;
+    public BossArenaController arena;
 
     public void Start()
     {
@@ -51,8 +53,8 @@ public class EnemySpawner : MonoBehaviour
 
         // Keep the live object count bounded. Difficulty comes from cadence and stats.
         // More bodies create the mowing-game rhythm while the registry keeps searches cheap.
-        maxActiveEnemies = GameBalance.GetInt("spawn.max_active_base", 74) +
-            stageIndex * GameBalance.GetInt("spawn.max_active_per_stage", 16);
+        maxActiveEnemies = GameBalance.GetInt("spawn.max_active_base", 40) +
+            stageIndex * GameBalance.GetInt("spawn.max_active_per_stage", 8);
         cleanupTimer = cleanupInterval;
         spawnTimer = GameBalance.Get("spawn.first_delay", 0.6f);
     }
@@ -73,6 +75,9 @@ public class EnemySpawner : MonoBehaviour
             cleanupTimer = cleanupInterval;
             CleanupTrackedEnemies();
         }
+
+        // Boss 竞技场是封闭单挑空间：Boss 存活期间不再刷常规怪与涌浪。
+        if (bossSpawned) return;
 
         surgeTimer -= Time.deltaTime;
         if (surgeTimer <= 0f)
@@ -133,37 +138,43 @@ public class EnemySpawner : MonoBehaviour
 
     public EnemyKind ChooseKind()
     {
-        if (stageElapsed >= bossTime)
-            return ChooseWeightedKind("spawn.comp.post_boss.", Random.value, 100, 0, 0, 0, 0);
+        float bossTime = GameBalance.Get("game.boss_time", 270f);
 
-        float firstEnd = GameBalance.Get("spawn.comp.s" + stageIndex + "_t1", stageIndex == 1 ? 60f : 90f);
-        float secondEnd = GameBalance.Get("spawn.comp.s" + stageIndex + "_t2", stageIndex == 1 ? 150f : 180f);
+        if (stageElapsed >= bossTime)
+            return ChooseWeightedKind("spawn.comp.post_boss.", Random.value, 100, 0, 0, 0, 0, 0, 0, 0, 0);
+
+        float firstEnd = GameBalance.Get("spawn.comp.s" + stageIndex + "_t1", 90f);
+        float secondEnd = GameBalance.Get("spawn.comp.s" + stageIndex + "_t2", 180f);
         int phase = stageElapsed < firstEnd ? 1 : (stageElapsed < secondEnd ? 2 : 3);
         string prefix = "spawn.comp.s" + stageIndex + "_p" + phase + ".";
         float roll = Random.value;
+
         switch (stageIndex * 10 + phase)
         {
-            case 11: return ChooseWeightedKind(prefix, roll, 100, 0, 0, 0, 0);
-            case 12: return ChooseWeightedKind(prefix, roll, 70, 30, 0, 0, 0);
-            case 13: return ChooseWeightedKind(prefix, roll, 32, 20, 21, 13, 14);
-            case 21: return ChooseWeightedKind(prefix, roll, 60, 40, 0, 0, 0);
-            case 22: return ChooseWeightedKind(prefix, roll, 35, 37, 0, 28, 0);
-            case 23: return ChooseWeightedKind(prefix, roll, 20, 25, 14, 25, 16);
-            case 31: return ChooseWeightedKind(prefix, roll, 45, 55, 0, 0, 0);
-            case 32: return ChooseWeightedKind(prefix, roll, 25, 0, 37, 38, 0);
-            default: return ChooseWeightedKind(prefix, roll, 0, 18, 24, 26, 32);
+            case 11: return ChooseWeightedKind(prefix, roll, 100, 0, 0, 0, 0, 0, 0, 0, 0);
+            case 12: return ChooseWeightedKind(prefix, roll, 60, 25, 15, 0, 0, 0, 0, 0, 0);
+            case 13: return ChooseWeightedKind(prefix, roll, 30, 20, 20, 15, 15, 0, 0, 0, 0);
+            case 21: return ChooseWeightedKind(prefix, roll, 0, 0, 0, 0, 0, 60, 40, 0, 0);
+            case 22: return ChooseWeightedKind(prefix, roll, 0, 0, 0, 0, 0, 35, 30, 35, 0);
+            case 23: return ChooseWeightedKind(prefix, roll, 0, 0, 0, 0, 0, 25, 20, 30, 25);
+            case 31: return ChooseWeightedKind(prefix, roll, 0, 50, 0, 30, 20, 0, 0, 0, 0);
+            case 32: return ChooseWeightedKind(prefix, roll, 0, 30, 25, 25, 0, 0, 0, 0, 20);
+            default: return ChooseWeightedKind(prefix, roll, 0, 20, 25, 25, 15, 0, 0, 0, 15);
         }
     }
 
-    public EnemyKind ChooseWeightedKind(string prefix, float roll, int cell, int spike, int ruptured, int thrombus, int bleeding)
+    public EnemyKind ChooseWeightedKind(string prefix, float roll, int cell, int spike, int ruptured, int thrombus, int bleeding, int stasis, int fibrin, int primitive, int blocker)
     {
         float[] weights = {
             GameBalance.Get(prefix + "cell", cell), GameBalance.Get(prefix + "spike", spike),
             GameBalance.Get(prefix + "ruptured", ruptured), GameBalance.Get(prefix + "thrombus", thrombus),
-            GameBalance.Get(prefix + "bleeding", bleeding)
+            GameBalance.Get(prefix + "bleeding", bleeding), GameBalance.Get(prefix + "stasis", stasis),
+            GameBalance.Get(prefix + "fibrin", fibrin), GameBalance.Get(prefix + "primitive", primitive),
+            GameBalance.Get(prefix + "blocker", blocker)
         };
         EnemyKind[] kinds = { EnemyKind.CellShadow, EnemyKind.SpikeSoldier, EnemyKind.RupturedCell,
-            EnemyKind.MicroThrombus, EnemyKind.BleedingGap };
+            EnemyKind.MicroThrombus, EnemyKind.BleedingGap, EnemyKind.VenousStasis,
+            EnemyKind.FibrinNet, EnemyKind.PrimitiveCell, EnemyKind.TargetBlocker };
         float total = 0f;
         for (int i = 0; i < weights.Length; i++) total += Mathf.Max(0f, weights[i]);
         if (total <= 0f) return EnemyKind.CellShadow;
@@ -270,21 +281,82 @@ public class EnemySpawner : MonoBehaviour
     {
         if (bossSpawned || player == null) return;
         bossSpawned = true;
-        GameObject prefab = bossPrefab == null ? enemyPrefab : bossPrefab;
-        if (prefab == null) return;
+        StartCoroutine(BossIntroRoutine());
+    }
 
-        Vector3 position = player.position + Vector3.up * spawnRadius;
-        GameObject bossObject = Instantiate(prefab, position, Quaternion.identity);
+    IEnumerator BossIntroRoutine()
+    {
+        GameObject prefab = bossPrefab == null ? enemyPrefab : bossPrefab;
+        if (prefab == null) yield break;
+
+        if (arena == null) arena = GetComponent<BossArenaController>();
+        if (arena == null) arena = gameObject.AddComponent<BossArenaController>();
+        LevelUpManager levels = FindAnyObjectByType<LevelUpManager>();
+        if (levels != null) levels.deferChoices = true;
+
+        // 1) 全场时停（用真实时间计 2 秒，不受 timeScale 影响）。
+        Time.timeScale = 0f;
+        string bossName = stageIndex == 2 ? "曲张美杜莎" : "葡萄酒样色斑";
+        arena.ShowBanner("节点守护者 · " + bossName + " 来袭");
+
+        // 2) 以摄像机视野为准计算竞技场范围。
+        Camera cam = Camera.main != null ? Camera.main : FindAnyObjectByType<Camera>();
+        float rawHalfH = cam != null ? cam.orthographicSize : 7.2f;
+        float aspect = cam != null ? cam.aspect : 16f / 9f;
+        float margin = GameBalance.Get("boss.arena_margin", 0.95f);
+        Vector2 arenaCenter = player.position;
+        Vector2 halfExtents = new Vector2(rawHalfH * aspect * margin, rawHalfH * margin);
+
+        // 3) 清除全场小怪与残留危险区，并吸入所有经验球。
+        ClearAllEnemies();
+        ExperienceOrb[] orbs = FindObjectsByType<ExperienceOrb>(FindObjectsSortMode.None);
+        for (int i = 0; i < orbs.Length; i++) if (orbs[i] != null) orbs[i].CollectImmediate();
+
+        yield return new WaitForSecondsRealtime(GameBalance.Get("boss.intro_freeze", 2f));
+
+        // 4) 在竞技场内部生成 Boss（玩家上方），随后封墙锁定摄像机。
+        Vector3 bossPos = arenaCenter + Vector2.up * (halfExtents.y * 0.55f);
+        GameObject bossObject = Instantiate(prefab, bossPos, Quaternion.identity);
         ConfigureSpawnedEnemy(bossObject, EnemyKind.NodeBoss);
         VesselNodeBoss boss = bossObject.GetComponent<VesselNodeBoss>();
         if (boss == null) boss = bossObject.AddComponent<VesselNodeBoss>();
         boss.spawner = this;
         boss.player = player;
+
+        arena.BuildArena(arenaCenter, halfExtents, rawHalfH, player, boss);
+        arena.HideBanner();
+
+        // 5) 演出期间累计的升级此时再弹卡；无升级则直接恢复战斗。
+        if (levels != null)
+        {
+            levels.deferChoices = false;
+            levels.ResumeDeferredChoices();
+        }
+        if ((levels == null || !levels.isChoosing) &&
+            (GameManager.Instance == null || !GameManager.Instance.gameEnded))
+            Time.timeScale = 1f;
+    }
+
+    public void ClearAllEnemies()
+    {
+        for (int i = trackedEnemies.Count - 1; i >= 0; i--)
+        {
+            Enemy enemy = trackedEnemies[i];
+            if (enemy != null)
+            {
+                enemy.OnDied -= HandleTrackedEnemyDied;
+                Destroy(enemy.gameObject);
+            }
+            trackedEnemies.RemoveAt(i);
+        }
+        VesselHazardZone[] hazards = FindObjectsByType<VesselHazardZone>(FindObjectsSortMode.None);
+        for (int i = 0; i < hazards.Length; i++) if (hazards[i] != null) Destroy(hazards[i].gameObject);
     }
 
     public void NotifyBossDefeated()
     {
         bossDefeated = true;
+        if (arena != null) arena.Release();
         if (GameManager.Instance != null) GameManager.Instance.HandleBossDefeated();
     }
 
