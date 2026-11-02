@@ -6,7 +6,7 @@ public class AutoAttack : MonoBehaviour
     public float attackInterval = 0.5f;
     public float bulletSpeed = 10f;
     public float bulletLifetime = 2f;
-    public int bulletDamage = 1;
+    public int bulletDamage = 10;
     public GameObject bulletPrefab;
     public EnemySpawner enemySpawner;
     public CharacterCombat characterCombat;
@@ -79,16 +79,29 @@ public class AutoAttack : MonoBehaviour
 
     public void SpawnBullet(Vector2 direction, int maxTargets, Vector3 scale)
     {
+        SpawnBullet(direction, maxTargets, scale, bulletDamage, bulletSpeed, bulletLifetime, "NurseNeedle");
+    }
+
+    // Custom projectile path for vessel skills (1010) that need their own damage,
+    // speed, lifetime and penetration while reusing the existing bullet prefab.
+    public void SpawnBullet(Vector2 direction, int maxTargets, Vector3 scale,
+        int damage, float speed, float lifetime, string projectileName)
+    {
         if (bulletPrefab == null) return;
         Quaternion rotation = Quaternion.Euler(0f, 0f, Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg - 90f);
         GameObject projectile = Instantiate(bulletPrefab, transform.position, rotation);
-        projectile.name = "NurseNeedle";
+        projectile.name = string.IsNullOrEmpty(projectileName) ? "SkillProjectile" : projectileName;
         projectile.transform.localScale = scale;
         Rigidbody2D body = projectile.GetComponent<Rigidbody2D>();
-        if (body != null) body.linearVelocity = direction * bulletSpeed;
+        if (body != null) body.linearVelocity = direction * speed;
         Bullet bullet = projectile.GetComponent<Bullet>();
-        if (bullet != null) { bullet.damage = bulletDamage; bullet.maxTargets = maxTargets; bullet.source = characterCombat; }
-        Destroy(projectile, bulletLifetime);
+        if (bullet != null)
+        {
+            bullet.damage = Mathf.Max(1, damage);
+            bullet.maxTargets = Mathf.Max(1, maxTargets);
+            bullet.source = characterCombat;
+        }
+        Destroy(projectile, Mathf.Max(0.1f, lifetime));
     }
 
     public void IncreaseDamage(int amount)

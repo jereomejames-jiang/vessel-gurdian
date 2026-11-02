@@ -7,7 +7,7 @@ using UnityEngine.UI;
 
 public class MainMenuBuilder : EditorWindow
 {
-    [MenuItem("VesselGuard/重建主界面")]
+    [MenuItem("VesselGuard/重建主菜单（旧版·深色）", false, 9)]
     public static void CreateFromMenu()
     {
         if (EditorApplication.isPlayingOrWillChangePlaymode)

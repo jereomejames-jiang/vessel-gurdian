@@ -28,29 +28,28 @@ public class SkillCodexManager : MonoBehaviour
 
     public void EnsureCards()
     {
-        if (cards != null && cards.Length > 0 && System.Array.TrueForAll(cards, c => c != null && VesselSkillCatalog.IsVesselSkill(c.linkedUpgradeType))) return;
-        LevelUpManager levels = FindAnyObjectByType<LevelUpManager>();
-        if (levels != null) levels.Subscribe();
-        List<SkillCardDefinition> runtimeCards = new List<SkillCardDefinition>();
-        if (levels != null && levels.allUpgrades != null)
+        if (cards != null && cards.Length == VesselSkillCatalog.AllTypes.Length)
         {
-            foreach (UpgradeOption option in levels.allUpgrades)
+            bool allCurrent = true;
+            for (int i = 0; i < cards.Length; i++)
             {
-                if (option == null || !VesselSkillCatalog.IsVesselSkill(option.type)) continue;
-                SkillCardDefinition card = option.skillCard;
-                if (card == null) card = VesselSkillCatalog.CreateCard(VesselSkillCatalog.IndexOf(option.type));
-                runtimeCards.Add(card);
+                if (cards[i] == null || cards[i].skillId <= 0 ||
+                    cards[i].skillId != VesselSkillCatalog.SkillIdFor(cards[i].linkedUpgradeType) ||
+                    !VesselSkillCatalog.IsVesselSkill(cards[i].linkedUpgradeType))
+                {
+                    allCurrent = false;
+                    break;
+                }
             }
+            if (allCurrent) return;
         }
-        cards = runtimeCards.Count == 0 ? CreateFallbackCards() : runtimeCards.ToArray();
-        System.Array.Sort(cards, (a, b) => a.linkedUpgradeType.CompareTo(b.linkedUpgradeType));
+        cards = VesselSkillCatalog.CreateCodexCards();
+        System.Array.Sort(cards, (a, b) => a.skillId.CompareTo(b.skillId));
     }
 
     public SkillCardDefinition[] CreateFallbackCards()
     {
-        List<SkillCardDefinition> result = new List<SkillCardDefinition>();
-        for (int i = 0; i < VesselSkillCatalog.Types.Length; i++) result.Add(VesselSkillCatalog.CreateCard(i));
-        return result.ToArray();
+        return VesselSkillCatalog.CreateCodexCards();
     }
 
     public SkillCardDefinition GetCardFor(UpgradeOption option)
@@ -127,7 +126,18 @@ public class SkillCodexManager : MonoBehaviour
         if (detailText == null || cards == null || index < 0 || index >= cards.Length) return;
         selectedIndex = index;
         SkillCardDefinition card = cards[index];
-            detailText.text = card.IsUnlocked
+        if (card.linkedUpgradeType == UpgradeType.BloodRecycleForceps && !card.IsUnlocked)
+        {
+            PlayerSkillCollection collection = FindAnyObjectByType<PlayerSkillCollection>();
+            int sidewall = collection == null ? 0 : collection.GetLevel(UpgradeType.SidewallForceps);
+            int heart = collection == null ? 0 : collection.GetLevel(UpgradeType.HeartAmulet);
+            detailText.text = card.displayName +
+                "\n\n当前进度：侧壁钳 Lv" + sidewall + "/" +
+                VesselSkillCatalog.MaxLevelFor(UpgradeType.SidewallForceps) +
+                " · 心形护符 Lv" + heart + "/1\n\n" + card.description;
+            return;
+        }
+        detailText.text = card.IsUnlocked
             ? (string.IsNullOrEmpty(card.iconGlyph) ? "" : card.iconGlyph + "  ") + card.displayName + "  ·  " + card.description + "\n\n" + card.educationText
             : card.displayName + "\n\n在战斗升级时选择对应技能，即可永久点亮这张卡牌。";
     }
@@ -166,10 +176,20 @@ public class SkillCodexManager : MonoBehaviour
         closeButton.onClick.AddListener(() => SetPanel(false));
         detailText = MakeText(content.transform, "CodexDetail", "", 22, TextAnchor.UpperLeft,
             new Vector2(0f, -270f), new Vector2(900f, 175f));
+        // 13 cards need a compact 5-column grid; the old 4-column layout put the
+        // last row over the detail panel.
+        int columns = cards.Length > 10 ? 5 : 4;
+        float spacingX = columns == 5 ? 190f : 230f;
+        float cardWidth = columns == 5 ? 180f : 220f;
+        float cardHeight = columns == 5 ? 112f : 125f;
+        float startX = -(columns - 1) * spacingX * 0.5f;
+        float startY = cards.Length > 10 ? 145f : 120f;
+        float spacingY = cards.Length > 10 ? 130f : 155f;
         for (int i = 0; i < cards.Length; i++)
         {
             Button button = MakeButton(content.transform, "SkillCard_" + cards[i].cardId, "",
-                new Vector2(-345f + (i % 4) * 230f, 120f - (i / 4) * 155f), new Vector2(220f, 125f));
+                new Vector2(startX + (i % columns) * spacingX, startY - (i / columns) * spacingY),
+                new Vector2(cardWidth, cardHeight));
             int index = i;
             button.onClick.AddListener(() => ShowCardDetail(index));
             cardButtons.Add(button);
@@ -262,6 +282,7 @@ public class SkillCodexManager : MonoBehaviour
 
     public Color ColorFor(UpgradeType type)
     {
+        if (VesselSkillCatalog.IsVesselSkill(type)) return VesselSkillCatalog.ColorFor(type);
         switch (type)
         {
             case UpgradeType.Damage: return new Color(0.78f, 0.24f, 0.25f, 1f);

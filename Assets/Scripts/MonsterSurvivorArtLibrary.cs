@@ -60,6 +60,9 @@ public static class MonsterSurvivorArtLibrary
             case UpgradeType.ThrombusCatheter: return LoadSingle("ui_ab_magnet");
             case UpgradeType.SuctionTube: return LoadSingle("ui_ab_suction");
             case UpgradeType.AblationBomb: return LoadSingle("ui_ab_bomb");
+            case UpgradeType.NeedleBullet: return LoadSingle("ui_ab_lightning");
+            case UpgradeType.HeartAmulet: return LoadSingle("ui_ab_heal");
+            case UpgradeType.BloodRecycleForceps: return LoadSingle("ui_ab_heal");
         }
         return null;
     }

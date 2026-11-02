@@ -66,7 +66,8 @@ public class CardRevealUI : MonoBehaviour
         revealPanel.transform.localScale = Vector3.one;
 
         previousLevel = Mathf.Max(0, fromLevel);
-        nextLevel = Mathf.Clamp(toLevel, 1, 3);
+        int maxLevel = VesselSkillCatalog.MaxLevelFor(card.linkedUpgradeType);
+        nextLevel = Mathf.Clamp(toLevel, 1, maxLevel);
         activeCard = card;
         SetFrontFace(card);
         if (cardBackground != null) cardBackground.color = new Color(card.cardColor.r, card.cardColor.g, card.cardColor.b, 0.92f);
@@ -162,7 +163,11 @@ public class CardRevealUI : MonoBehaviour
 
     public string LevelLine()
     {
-        return previousLevel <= 0 ? "Lv 1" : (previousLevel >= 3 ? "Lv 3  MAX" : "Lv " + previousLevel + " → " + nextLevel);
+        int maxLevel = activeCard == null ? VesselSkillCatalog.StandardMaxLevel :
+            VesselSkillCatalog.MaxLevelFor(activeCard.linkedUpgradeType);
+        if (previousLevel <= 0) return maxLevel <= 1 ? "Lv 1  MAX" : "Lv 1";
+        if (previousLevel >= maxLevel) return "Lv " + maxLevel + "  MAX";
+        return "Lv " + previousLevel + " → " + nextLevel;
     }
 
     public string ShortDescription(SkillCardDefinition card)

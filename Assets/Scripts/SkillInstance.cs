@@ -9,7 +9,9 @@ public class SkillInstance : MonoBehaviour
 
     public void RecordSelection()
     {
-        if (selectedCount < LevelUpManager.SkillMaxLevel) selectedCount++;
+        int maxLevel = definition == null ? LevelUpManager.SkillMaxLevel :
+            VesselSkillCatalog.MaxLevelFor(definition.type);
+        if (selectedCount < maxLevel) selectedCount++;
         acquired = true;
     }
 }

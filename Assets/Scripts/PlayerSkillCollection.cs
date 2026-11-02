@@ -57,9 +57,10 @@ public class PlayerSkillCollection : MonoBehaviour
             SkillInstance skill = skills[i];
             if (skill == null || skill.definition == null || skill.definition.type != type) continue;
             // Take the highest recorded count so a duplicated entry can never mask
-            // the real level; effective level still clamps to 0..3.
+            // the real level; the effective level still clamps to the type's cap.
             if (instance == null || skill.selectedCount > instance.selectedCount) instance = skill;
         }
-        return instance == null ? 0 : Mathf.Clamp(instance.selectedCount, 0, LevelUpManager.SkillMaxLevel);
+        int maxLevel = VesselSkillCatalog.MaxLevelFor(type);
+        return instance == null ? 0 : Mathf.Clamp(instance.selectedCount, 0, maxLevel);
     }
 }

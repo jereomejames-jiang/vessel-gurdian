@@ -17,7 +17,12 @@ public class LevelUpManager : MonoBehaviour
     public bool subscribed;
     public bool isChoosing;
     public int pendingLevels;
-    public const int SkillMaxLevel = 3;
+    public const int SkillMaxLevel = VesselSkillCatalog.StandardMaxLevel;
+
+    // Evolution 203 is only injected once, after both recipe levels are present.
+    public UpgradeOption evolutionOption;
+    public bool evolutionOffered;
+    public bool evolutionApplied;
 
     void OnEnable() { Subscribe(); }
     void Start() { Subscribe(); }
@@ -25,9 +30,10 @@ public class LevelUpManager : MonoBehaviour
     public void Subscribe()
     {
         choicesPerLevel = GameBalance.GetInt("game.choices_per_level", choicesPerLevel);
-        // Always use the ten skills from the design sheet. This also migrates
-        // scenes that still serialize the five legacy prototype upgrades.
-        if (allUpgrades == null || allUpgrades.Length == 0 || !ContainsVesselSkill(allUpgrades))
+        // Always use the catalog from the design sheet. This also migrates scenes
+        // that still serialize the five legacy prototype upgrades or an older
+        // ten-skill array without the new active/passive samples.
+        if (!MatchesCatalog(allUpgrades))
             allUpgrades = VesselSkillCatalog.CreateOptions();
         if (playerStats == null) playerStats = FindAnyObjectByType<PlayerStats>();
         if (playerController == null) playerController = FindAnyObjectByType<PlayerController>();
@@ -39,6 +45,16 @@ public class LevelUpManager : MonoBehaviour
             playerStats.OnLevelUp += HandleLevelUp;
             subscribed = true;
         }
+    }
+
+    bool MatchesCatalog(UpgradeOption[] options)
+    {
+        if (options == null || options.Length != VesselSkillCatalog.Types.Length) return false;
+        for (int i = 0; i < options.Length; i++)
+        {
+            if (options[i] == null || options[i].type != VesselSkillCatalog.Types[i]) return false;
+        }
+        return true;
     }
 
     public bool ContainsVesselSkill(UpgradeOption[] options)
@@ -79,12 +95,51 @@ public class LevelUpManager : MonoBehaviour
     public bool IsSkillMaxed(UpgradeOption option)
     {
         return option != null && VesselSkillCatalog.IsVesselSkill(option.type) &&
-            GetSkillLevel(option.type) >= SkillMaxLevel;
+            GetSkillLevel(option.type) >= VesselSkillCatalog.MaxLevelFor(option.type);
+    }
+
+    public bool CanOfferBloodRecycle()
+    {
+        if (evolutionApplied || evolutionOffered) return false;
+        return GetSkillLevel(UpgradeType.SidewallForceps) >=
+                VesselSkillCatalog.MaxLevelFor(UpgradeType.SidewallForceps) &&
+            GetSkillLevel(UpgradeType.HeartAmulet) >= 1;
+    }
+
+    // Once the player has invested in either half of the 203 recipe, keep one of
+    // the two required skills in the visible choices until the recipe is complete.
+    // Without this, a 12-skill pool and three random choices make reaching
+    // Sidewall Lv5 + Heart Lv1 extremely unlikely in a normal run.
+    public UpgradeOption GetRecipeFocusOption()
+    {
+        if (evolutionApplied || evolutionOffered) return null;
+        if (GameBalance.GetInt("game.evolution_recipe_guarantee", 1) == 0) return null;
+        int sidewall = GetSkillLevel(UpgradeType.SidewallForceps);
+        int heart = GetSkillLevel(UpgradeType.HeartAmulet);
+        if (sidewall <= 0 && heart <= 0) return null;
+        if (sidewall < VesselSkillCatalog.MaxLevelFor(UpgradeType.SidewallForceps))
+            return FindUpgradeOption(UpgradeType.SidewallForceps);
+        if (heart < 1) return FindUpgradeOption(UpgradeType.HeartAmulet);
+        return null;
+    }
+
+    UpgradeOption FindUpgradeOption(UpgradeType type)
+    {
+        if (allUpgrades == null) return null;
+        for (int i = 0; i < allUpgrades.Length; i++)
+            if (allUpgrades[i] != null && allUpgrades[i].type == type) return allUpgrades[i];
+        return null;
+    }
+
+    void EnsureEvolutionOption()
+    {
+        if (evolutionOption == null)
+            evolutionOption = VesselSkillCatalog.CreateOption(UpgradeType.BloodRecycleForceps);
     }
 
     public void ShowNextChoices()
     {
-        // Deduplicate by skill type and exclude skills already at Lv3.
+        // Deduplicate by skill type and exclude skills already at their cap.
         List<UpgradeOption> pool = new List<UpgradeOption>();
         HashSet<UpgradeType> seen = new HashSet<UpgradeType>();
         if (allUpgrades != null)
@@ -94,6 +149,17 @@ public class LevelUpManager : MonoBehaviour
                 if (IsSkillMaxed(option)) continue;
                 pool.Add(option);
             }
+
+        bool offerEvolution = CanOfferBloodRecycle();
+        if (offerEvolution)
+        {
+            EnsureEvolutionOption();
+            if (evolutionOption != null && seen.Add(evolutionOption.type)) pool.Add(evolutionOption);
+        }
+
+        UpgradeOption recipeFocus = GetRecipeFocusOption();
+        if (recipeFocus != null && !IsSkillMaxed(recipeFocus) && !pool.Contains(recipeFocus))
+            pool.Add(recipeFocus);
 
         if (pool.Count == 0)
         {
@@ -108,13 +174,44 @@ public class LevelUpManager : MonoBehaviour
             pool[i] = pool[index];
             pool[index] = temp;
         }
-        currentChoices = pool.GetRange(0, Mathf.Clamp(choicesPerLevel, 1, pool.Count)).ToArray();
+
+        int slotCount = Mathf.Clamp(choicesPerLevel, 1, pool.Count);
+        // The recipe promises the evolution in the very next choice. Keep it inside
+        // the visible slice even after the random shuffle; otherwise a 3-of-12 draw
+        // could mark it offered without ever showing it.
+        if (offerEvolution && evolutionOption != null && slotCount > 0)
+        {
+            int evolutionIndex = pool.IndexOf(evolutionOption);
+            if (evolutionIndex >= slotCount)
+            {
+                int swapIndex = UnityEngine.Random.Range(0, slotCount);
+                UpgradeOption temp = pool[evolutionIndex];
+                pool[evolutionIndex] = pool[swapIndex];
+                pool[swapIndex] = temp;
+            }
+        }
+        // Same protection for the recipe focus card: it must be pickable now, not
+        // merely present in the hidden part of the shuffled pool.
+        if (recipeFocus != null && slotCount > 0)
+        {
+            int focusIndex = pool.IndexOf(recipeFocus);
+            if (focusIndex >= slotCount)
+            {
+                int swapIndex = UnityEngine.Random.Range(0, slotCount);
+                UpgradeOption temp = pool[focusIndex];
+                pool[focusIndex] = pool[swapIndex];
+                pool[swapIndex] = temp;
+            }
+        }
+
+        currentChoices = pool.GetRange(0, slotCount).ToArray();
+        evolutionOffered = offerEvolution;
         isChoosing = true;
         if (GameManager.Instance != null) GameManager.Instance.SetPause(PauseReason.CardChoice, true);
         OnShowChoices?.Invoke(currentChoices);
     }
 
-    // All ten skills are maxed: spend the reward on a 10% max-HP heal instead of
+    // All eligible skills are maxed: spend the reward on a 10% max-HP heal instead of
     // showing an empty panel. Full HP still consumes the reward without blocking.
     public void ConsumeRewardWithoutChoice()
     {
@@ -140,10 +237,11 @@ public class LevelUpManager : MonoBehaviour
 
         Subscribe();
         int previousSkillLevel = GetSkillLevel(option.type);
+        int maxLevel = VesselSkillCatalog.MaxLevelFor(option.type);
 
         // Second eligibility gate: stale buttons or double clicks can never push
-        // a vessel skill past Lv3. The reward is consumed and the queue advances.
-        if (previousSkillLevel >= SkillMaxLevel && VesselSkillCatalog.IsVesselSkill(option.type))
+        // a vessel skill past its cap. The reward is consumed and the queue advances.
+        if (VesselSkillCatalog.IsVesselSkill(option.type) && previousSkillLevel >= maxLevel)
         {
             isChoosing = false;
             currentChoices = Array.Empty<UpgradeOption>();
@@ -182,7 +280,8 @@ public class LevelUpManager : MonoBehaviour
         }
         if (playerSkillCollection == null) playerSkillCollection = FindAnyObjectByType<PlayerSkillCollection>();
         if (playerSkillCollection != null) playerSkillCollection.RecordSelection(option);
-        int nextSkillLevel = Mathf.Clamp(GetSkillLevel(option.type), 1, SkillMaxLevel);
+        if (option.type == UpgradeType.BloodRecycleForceps) evolutionApplied = true;
+        int nextSkillLevel = Mathf.Clamp(GetSkillLevel(option.type), 1, maxLevel);
         CharacterCombat combat = FindAnyObjectByType<CharacterCombat>();
         if (combat != null && VesselSkillCatalog.IsVesselSkill(option.type))
             combat.ApplyVesselSkill(option.type, GetSkillLevel(option.type));

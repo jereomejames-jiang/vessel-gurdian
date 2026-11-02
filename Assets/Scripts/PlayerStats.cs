@@ -4,6 +4,9 @@ using UnityEngine;
 public class PlayerStats : MonoBehaviour
 {
     public float maxHP = 100f;
+    // Optional hard ceiling (0 = uncapped). Keeps percentage-based max-HP gains
+    // from pushing current HP past a designed limit when a config sets one.
+    public float maxHPCap;
     public int xpPerLevel = 5;
     public float xpGrowth = 1.5f;
     public float currentHP;
@@ -15,6 +18,9 @@ public class PlayerStats : MonoBehaviour
     [HideInInspector] public float recoveryUntil;
     [HideInInspector] public float recoveryInterval = 2.5f;
     [HideInInspector] public bool membraneRegen;
+    [HideInInspector] public float heartAmuletBaseMaxHP;
+    [HideInInspector] public float heartAmuletBonus;
+    bool heartAmuletInitialized;
     float recoveryTimer;
     float lastDamageTime;
     float membraneRegenTimer;
@@ -28,6 +34,7 @@ public class PlayerStats : MonoBehaviour
     void Awake()
     {
         maxHP = GameBalance.Get("player.max_hp", maxHP);
+        maxHPCap = GameBalance.Get("player.max_hp_cap", maxHPCap);
         xpPerLevel = GameBalance.GetInt("xp.base_require", xpPerLevel);
         xpGrowth = GameBalance.Get("xp.growth", xpGrowth);
         recoveryInterval = GameBalance.Get("skill.stent.shield_heal_interval", recoveryInterval);
@@ -44,6 +51,10 @@ public class PlayerStats : MonoBehaviour
 
     void Update()
     {
+        // Keep the 203 overflow shield bounded even for saves/runs created before
+        // the cap existed. A paused run still clamps because this runs before the
+        // timeScale gate.
+        ClampShield();
         if (currentHP <= 0f || Time.timeScale <= 0f) return;
         if (temporaryShield > 0f)
         {
@@ -136,8 +147,76 @@ public class PlayerStats : MonoBehaviour
     {
         if (amount <= 0f) return;
 
-        maxHP += amount;
-        currentHP = Mathf.Min(maxHP, currentHP + amount);
+        float targetMax = maxHP + amount;
+        if (maxHPCap > 0f) targetMax = Mathf.Min(targetMax, maxHPCap);
+        float actualIncrease = Mathf.Max(0f, targetMax - maxHP);
+        maxHP = targetMax;
+        currentHP = Mathf.Min(maxHP, currentHP + actualIncrease);
+        OnHPChanged?.Invoke(currentHP, maxHP);
+    }
+
+    // 109 Heart Amulet. The multiplier always applies to the max HP captured when
+    // the first level is taken, so Lv1 -> Lv2 only adds the difference instead of
+    // multiplying the previous result again. The added amount follows
+    // IncreaseMaxHP semantics (current HP rises by the same amount, capped by max).
+    public void ApplyHeartAmulet(int level)
+    {
+        if (level <= 0) return;
+        if (!heartAmuletInitialized)
+        {
+            heartAmuletBaseMaxHP = maxHP;
+            heartAmuletBonus = 0f;
+            heartAmuletInitialized = true;
+        }
+        float multiplier = HeartAmuletMultiplier(level);
+        float targetBonus = heartAmuletBaseMaxHP * (multiplier - 1f);
+        float delta = targetBonus - heartAmuletBonus;
+        if (delta <= 0f) return;
+        heartAmuletBonus = targetBonus;
+        IncreaseMaxHP(delta);
+    }
+
+    public static float HeartAmuletMultiplier(int level)
+    {
+        switch (Mathf.Clamp(level, 1, VesselSkillCatalog.StandardMaxLevel))
+        {
+            case 1: return GameBalance.Get("skill.heart.mult_lv1", 1.2f);
+            case 2: return GameBalance.Get("skill.heart.mult_lv2", 1.4f);
+            case 3: return GameBalance.Get("skill.heart.mult_lv3", 1.6f);
+            case 4: return GameBalance.Get("skill.heart.mult_lv4", 1.8f);
+            default: return GameBalance.Get("skill.heart.mult_lv5", 2f);
+        }
+    }
+
+    // 203 Blood Recycle Forceps: healing past full health becomes a temporary shield.
+    // Base stent shield is always allowed; 203 overflow may add up to the larger
+    // of that shield and a percentage of max HP. Without a cap, repeated full-HP
+    // lifesteal stacked thousands of shield and made the HP bar appear frozen.
+    public float ShieldCap
+    {
+        get
+        {
+            float stentShield = GameBalance.Get("skill.stent.shield", 60f);
+            float ratioCap = maxHP * GameBalance.Get("skill.bloodforceps.shield_cap_percent", 0.5f);
+            return Mathf.Max(stentShield, ratioCap);
+        }
+    }
+
+    public void ClampShield()
+    {
+        if (temporaryShield <= 0f) return;
+        float cap = ShieldCap;
+        if (temporaryShield > cap) temporaryShield = cap;
+    }
+
+    public void HealWithOverflowToShield(float amount)
+    {
+        if (amount <= 0f || currentHP <= 0f) return;
+        float missing = Mathf.Max(0f, maxHP - currentHP);
+        float healed = Mathf.Min(missing, amount);
+        currentHP = Mathf.Min(maxHP, currentHP + healed);
+        float overflow = amount - healed;
+        if (overflow > 0f) temporaryShield = Mathf.Min(ShieldCap, temporaryShield + overflow);
         OnHPChanged?.Invoke(currentHP, maxHP);
     }
 
@@ -156,10 +235,18 @@ public class PlayerStats : MonoBehaviour
 
     public void ConfigureMembraneStent(int level)
     {
-        incomingDamageMultiplier = level >= 3 ? GameBalance.Get("skill.stent.mult_lv3", 0.65f) : (level == 2 ? GameBalance.Get("skill.stent.mult_lv2", 0.75f) : GameBalance.Get("skill.stent.mult_lv1", 0.85f));
+        switch (Mathf.Clamp(level, 1, VesselSkillCatalog.StandardMaxLevel))
+        {
+            case 1: incomingDamageMultiplier = GameBalance.Get("skill.stent.mult_lv1", 0.85f); break;
+            case 2: incomingDamageMultiplier = GameBalance.Get("skill.stent.mult_lv2", 0.75f); break;
+            case 3: incomingDamageMultiplier = GameBalance.Get("skill.stent.mult_lv3", 0.65f); break;
+            case 4: incomingDamageMultiplier = GameBalance.Get("skill.stent.mult_lv4", 0.55f); break;
+            default: incomingDamageMultiplier = GameBalance.Get("skill.stent.mult_lv5", 0.45f); break;
+        }
         if (level >= 3)
         {
-            temporaryShield = Mathf.Max(temporaryShield, GameBalance.Get("skill.stent.shield", 60f));
+            temporaryShield = Mathf.Min(ShieldCap,
+                Mathf.Max(temporaryShield, GameBalance.Get("skill.stent.shield", 60f)));
             membraneRegen = true;
             lastDamageTime = Time.time;
         }

@@ -1,0 +1,7 @@
+Kenney UI Pack
+https://kenney.nl/assets/ui-pack
+License: CC0 1.0 (public domain, commercial use allowed, no attribution required)
+
+Files in this folder are a subset of the pack (button / icon sprites), upscaled 3x
+with Lanczos so they stay crisp when nine-sliced at 1080p. The Kenney Future font
+is included under the same license.

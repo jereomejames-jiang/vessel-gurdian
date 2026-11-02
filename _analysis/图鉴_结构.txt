@@ -1,0 +1,626 @@
+
+===== [H1] 技能、怪兽与 Boss 图鉴 =====
+
+===== [H1] MS 游戏内容图鉴 =====
+
+===== [H2] 阅读规则与数值口径 =====
+
+===== [H2] 技能总览 =====
+  <table>
+    中文 / 英文 | 类型 ID | 分类 | 等级数 | 效果
+    环绕星 / Shooting Star | 0 | 主动技能 | 5 | 星形弹体在角色周围环绕，碰撞造成伤害。
+    守护之眼 / Guardian Eye | 1 | 主动技能 | 5 | 角色周围持续存在伤害场，按伤害间隔攻击进入范围的敌人。
+    雷电护符 / Lightning Amulet | 2 | 主动技能 | 5 | 从上方落雷攻击目标，并对附近敌人造成溅射伤害。
+    滚石 / Rolling Stone | 3 | 主动技能 | 5 | 石球自动运动并伤害接触敌人；基础预制体不启用击退。
+    冰晶 / Ice Shard | 4 | 主动技能 | 5 | 射出可穿透敌人的尖锐冰晶；配置未设置冰冻状态。
+    魔法符文 / Magic Rune | 5 | 主动技能 | 5 | 在角色附近地面布置符文地雷，敌人进入触发范围后爆炸。
+    火球 / Fireball | 6 | 主动技能 | 5 | 发射火球攻击附近敌人，命中后在爆炸半径内造成伤害。
+    回旋镖 / Boomerang | 7 | 主动技能 | 5 | 投出向外飞行再回返的回旋镖。
+    飞刀 / Flying Daggers | 8 | 主动技能 | 5 | 投出旋转的幽灵飞刀，以投掷力和散射角控制轨迹。
+    太阳聚光器 / Solar Magnifier | 9 | 主动技能 | 5 | 投射追踪敌人的阳光束；主目标与周围目标分别按每秒伤害结算。
+    磁铁 / Magnet | 100 | 被动技能 | 5 | 扩大掉落物吸附半径；当前基础半径为 3，Lv1–5 对应 6/9/12/15/18 世界单位。
+    羽翼 / Wings | 101 | 被动技能 | 5 | 提高角色基础移动速度。
+    力量护手 / Power Gauntlet | 102 | 被动技能 | 5 | 提高角色整体伤害倍率。
+    心形护符 / Heart Charm | 103 | 被动技能 | 5 | 提高最大生命值。
+    智慧之书 / Book Of Wisdom | 104 | 被动技能 | 5 | 提高经验获取倍率。
+    沙漏 / Hourglass | 105 | 被动技能 | 5 | 缩短支持冷却倍率的技能间隔；Lv1–5 分别缩短 8%/16%/24%/32%/40%。
+    活力药水 / Vitality Potion | 106 | 被动技能 | 5 | 周期恢复最大生命值的百分比；基础间隔 5 秒，并受角色冷却倍率影响。
+    泰坦盾 / Titan Shield | 107 | 被动技能 | 5 | 增加减伤百分比；与初始减伤相加，再结合局外护甲升级。
+    风扇 / Wind Fan | 108 | 被动技能 | 5 | 提高支持弹速倍率的弹体速度。
+    成长豆 / Grow Bean | 109 | 被动技能 | 5 | 扩大支持尺寸倍率的技能范围或尺寸。
+    空间宝珠 / Space Orb | 110 | 被动技能 | 5 | 延长支持持续时间倍率的技能时长。
+    黄金圣杯 / Golden Chalice | 111 | 被动技能 | 5 | 提高金币收益倍率。
+    虚空星 / Void Star | 200 | 进化技能 | 1 | 星体持续环绕，不再采用基础环绕星的周期消失逻辑。
+    时间之眼 / Time Gazer | 201 | 进化技能 | 1 | 持续范围伤害并减慢范围内敌人；移动速度倍率 0.5，即速度降低 50%。
+    雷霆环 / Thunder Ring | 202 | 进化技能 | 1 | 落雷打击后产生球状闪电，增加后续碰撞伤害。
+    狼牙球 / Mace Ball | 203 | 进化技能 | 1 | 强化滚动球体，扩大尺寸并增加伤害；预制体启用击退。
+    银桩 / Silver Stakes | 204 | 进化技能 | 1 | 发射多根高速穿透银桩。
+    尖刺陷阱 / Spiky Trap | 205 | 进化技能 | 1 | 符文陷阱爆炸后散射尖刺，爆炸与尖刺分别使用自己的伤害倍率。
+    陨石 / Meteor | 206 | 进化技能 | 1 | 从上方投下多枚陨石并产生范围爆炸。
+    反弹回旋镖 / Recoiler | 207 | 进化技能 | 1 | 强化回旋镖沿旋转轨迹运动，在持续时间内攻击敌人。
+    双飞刀 / Twin Daggers | 208 | 进化技能 | 1 | 一次释放 10 枚双飞刀弹体。
+    月光投射器 / Lunar Projector | 209 | 进化技能 | 1 | 释放多条环绕的月光束。
+    木杖 / Wooden Wand | 1000 | 基础武器 | 5 | 自动向附近敌人发射魔法弹；初始武器。
+    钢剑 / Steel Sword | 1001 | 基础武器 | 5 | 向前方挥砍，可随等级增加连续挥砍次数；初始武器。
+    远古权杖 / Ancient Scepter | 1100 | 进化技能 | 1 | 以很短的冷却间隔持续发射强化魔法弹。
+    神圣之刃 / Sacred Blade | 1101 | 进化技能 | 1 | 连续挥砍并发出金色剑波；剑击与剑波分别结算伤害。
+    治疗奖励 / Heal | 2001 | 满级奖励 | 1 | 其他升级选项耗尽时提供的治疗选项，一次恢复最大生命值的 40%。
+    金币奖励 / Gold | 2002 | 满级奖励 | 1 | 其他升级选项耗尽时提供的金币选项，一次获得 40 金币。
+  </table>
+
+===== [H2] 进化配方 =====
+  <table>
+    进化结果 | 条件 | 移除项
+    虚空星 / Void Star | 环绕星 Lv5 + 空间宝珠 Lv1 | 环绕星
+    时间之眼 / Time Gazer | 守护之眼 Lv5 + 沙漏 Lv1 | 守护之眼
+    雷霆环 / Thunder Ring | 雷电护符 Lv5 + 心形护符 Lv1 | 雷电护符
+    狼牙球 / Mace Ball | 滚石 Lv5 + 力量护手 Lv1 | 滚石
+    银桩 / Silver Stakes | 冰晶 Lv5 + 泰坦盾 Lv1 | 冰晶
+    尖刺陷阱 / Spiky Trap | 魔法符文 Lv5 + 风扇 Lv1 | 魔法符文
+    陨石 / Meteor | 火球 Lv5 + 成长豆 Lv1 | 火球
+    反弹回旋镖 / Recoiler | 回旋镖 Lv5 + 磁铁 Lv1 | 回旋镖
+    双飞刀 / Twin Daggers | 飞刀 Lv5 + 羽翼 Lv1 | 飞刀
+    月光投射器 / Lunar Projector | 太阳聚光器 Lv5 + 活力药水 Lv1 | 太阳聚光器
+    远古权杖 / Ancient Scepter | 木杖 Lv5 + 智慧之书 Lv1 | 木杖
+    神圣之刃 / Sacred Blade | 钢剑 Lv5 + 黄金圣杯 Lv1 | 钢剑
+  </table>
+
+===== [H2] 基础武器详情 =====
+
+===== [H3] 木杖 / Wooden Wand =====
+  <table>
+    参数 | Lv1 | Lv2 | Lv3 | Lv4 | Lv5
+    技能周期/冷却（秒） (abilityCooldown) | 1 | 0.5 | 0.4 | 0.35 | 0.25
+    弹体速度（单位/秒） (projectileSpeed) | 5 | 6 | 7 | 8 | 8
+    伤害倍率 (damage) | 10 | 10 | 15 | 20 | 20
+    弹体尺寸倍率 (projectileSize) | 1 | 1 | 1 | 1 | 1
+    弹体持续时间（秒） (projectileLifetime) | 5 | 5 | 5 | 5 | 5
+  </table>
+
+===== [H3] 钢剑 / Steel Sword =====
+  <table>
+    参数 | Lv1 | Lv2 | Lv3 | Lv4 | Lv5
+    技能周期/冷却（秒） (abilityCooldown) | 2 | 2 | 2 | 2 | 2
+    连续挥砍次数 (slashesCount) | 1 | 2 | 3 | 4 | 5
+    伤害倍率 (damage) | 10 | 10 | 15 | 15 | 15
+    挥砍尺寸倍率 (slashSize) | 1 | 1 | 1.2 | 1.2 | 1.4
+    挥砍间隔（秒） (timeBetweenSlashes) | 0.2 | 0.2 | 0.2 | 0.2 | 0.2
+  </table>
+
+===== [H2] 主动技能详情 =====
+
+===== [H3] 环绕星 / Shooting Star =====
+  <table>
+    参数 | Lv1 | Lv2 | Lv3 | Lv4 | Lv5
+    伤害倍率 (damage) | 5 | 10 | 10 | 15 | 20
+    技能周期/冷却（秒） (abilityCooldown) | 6 | 6 | 6 | 6 | 6
+    弹体持续时间（秒） (projectileLifetime) | 3 | 3 | 3 | 3 | 3
+    弹体数量 (projectilesCount) | 2 | 3 | 4 | 5 | 6
+    环绕半径（单位） (radius) | 1.5 | 1.5 | 1.5 | 1.5 | 1.5
+    角速度（度/秒） (angularSpeed) | -200 | -200 | -200 | -250 | -300
+  </table>
+
+===== [H3] 守护之眼 / Guardian Eye =====
+  <table>
+    参数 | Lv1 | Lv2 | Lv3 | Lv4 | Lv5
+    场半径（单位） (fieldRadius) | 0.8 | 1 | 1.2 | 1.4 | 1.6
+    伤害倍率 (damage) | 5 | 10 | 15 | 15 | 20
+    伤害间隔（秒） (damageCooldown) | 1 | 1 | 1 | 1 | 1
+  </table>
+
+===== [H3] 雷电护符 / Lightning Amulet =====
+  <table>
+    参数 | Lv1 | Lv2 | Lv3 | Lv4 | Lv5
+    伤害倍率 (damage) | 20 | 20 | 20 | 25 | 30
+    溅射伤害倍率 (additionalDamage) | 5 | 5 | 5 | 7 | 10
+    溅射半径（单位） (additionalDamageRadius) | 0.5 | 0.5 | 0.5 | 0.5 | 0.5
+    落雷数量 (lightningsCount) | 1 | 2 | 3 | 4 | 5
+    技能周期/冷却（秒） (abilityCooldown) | 5 | 5 | 5 | 5 | 5
+    连续打击间隔（秒） (durationBetweenHits) | 0.2 | 0.2 | 0.2 | 0.2 | 0.2
+  </table>
+
+===== [H3] 滚石 / Rolling Stone =====
+  <table>
+    参数 | Lv1 | Lv2 | Lv3 | Lv4 | Lv5
+    移动速度（单位/秒） (speed) | 1 | 1 | 1 | 1 | 1
+    角速度（度/秒） (angularSpeed) | 180 | 180 | 180 | 180 | 180
+    伤害倍率 (damage) | 20 | 20 | 25 | 30 | 35
+    尺寸倍率 (size) | 0.5 | 0.5 | 0.75 | 0.75 | 1
+  </table>
+
+===== [H3] 冰晶 / Ice Shard =====
+  <table>
+    参数 | Lv1 | Lv2 | Lv3 | Lv4 | Lv5
+    技能周期/冷却（秒） (abilityCooldown) | 10 | 10 | 10 | 10 | 10
+    弹体速度（单位/秒） (projectileSpeed) | 5 | 6 | 7 | 8 | 9
+    伤害倍率 (damage) | 20 | 20 | 25 | 25 | 25
+    弹体尺寸倍率 (projectileSize) | 1 | 1 | 1 | 1 | 1.25
+    弹体数量 (projectilesCount) | 1 | 2 | 2 | 3 | 3
+    弹体持续时间（秒） (projectileLifetime) | 7 | 7 | 7 | 7 | 7
+  </table>
+
+===== [H3] 魔法符文 / Magic Rune =====
+  <table>
+    参数 | Lv1 | Lv2 | Lv3 | Lv4 | Lv5
+    地雷数量 (minesCount) | 2 | 2 | 3 | 3 | 3
+    技能周期/冷却（秒） (abilityCooldown) | 5 | 5 | 5 | 5 | 5
+    地雷生成半径（单位） (mineSpawnRadius) | 2 | 2 | 2.5 | 2.5 | 2.5
+    地雷持续时间（秒） (mineLifetime) | 5 | 6 | 7 | 8 | 9
+    伤害倍率 (damage) | 20 | 20 | 25 | 25 | 30
+    地雷尺寸倍率 (mineSize) | 1 | 1.2 | 1.4 | 1.6 | 1.8
+    触发半径（单位） (mineTriggerRadius) | 0.3 | 0.35 | 0.4 | 0.45 | 0.5
+    地雷伤害半径（单位） (mineDamageRadius) | 1 | 1.2 | 1.4 | 1.6 | 1.8
+  </table>
+
+===== [H3] 火球 / Fireball =====
+  <table>
+    参数 | Lv1 | Lv2 | Lv3 | Lv4 | Lv5
+    弹体数量 (projectilesCount) | 1 | 2 | 2 | 3 | 3
+    火球间隔（秒） (timeBetweenFireballs) | 0.2 | 0.2 | 0.2 | 0.2 | 0.2
+    技能周期/冷却（秒） (abilityCooldown) | 5 | 5 | 5 | 5 | 5
+    火球持续时间（秒） (fireballLifetime) | 5 | 5 | 5 | 5 | 5
+    移动速度（单位/秒） (speed) | 3 | 3 | 4 | 4 | 5
+    伤害倍率 (damage) | 15 | 15 | 15 | 20 | 20
+    弹体尺寸倍率 (projectileSize) | 1 | 1 | 1 | 1 | 1.25
+    爆炸半径（单位） (explosionRadius) | 1 | 1 | 1.5 | 1.5 | 1.75
+  </table>
+
+===== [H3] 回旋镖 / Boomerang =====
+  <table>
+    参数 | Lv1 | Lv2 | Lv3 | Lv4 | Lv5
+    弹体数量 (projectileCount) | 1 | 1 | 2 | 2 | 3
+    弹体持续时间（秒） (projectileLifetime) | 2 | 2 | 2 | 2 | 2
+    弹体间隔（秒） (timeBetweenProjectiles) | 0.3 | 0.3 | 0.3 | 0.3 | 0.3
+    技能周期/冷却（秒） (abilityCooldown) | 5 | 5 | 5 | 5 | 5
+    飞行距离（单位） (projectileTravelDistance) | 3 | 3 | 3 | 3.5 | 3.5
+    伤害倍率 (damage) | 12 | 15 | 20 | 30 | 35
+    弹体尺寸倍率 (projectileSize) | 0.75 | 1 | 1 | 1.25 | 1.25
+  </table>
+
+===== [H3] 飞刀 / Flying Daggers =====
+  <table>
+    参数 | Lv1 | Lv2 | Lv3 | Lv4 | Lv5
+    弹体数量 (projectileCount) | 1 | 2 | 2 | 3 | 3
+    弹体持续时间（秒） (projectileLifetime) | 4 | 4 | 4 | 4 | 4
+    弹体间隔（秒） (timeBetweenProjectiles) | 0.2 | 0.2 | 0.2 | 0.2 | 0.2
+    技能周期/冷却（秒） (abilityCooldown) | 5 | 5 | 5 | 5 | 5
+    投掷力 (throwingForce) | 8 | 8 | 8 | 8 | 8
+    散射角（度） (spread) | 20 | 20 | 20 | 20 | 20
+    伤害倍率 (damage) | 15 | 15 | 20 | 20 | 25
+    弹体尺寸倍率 (projectileSize) | 1 | 1 | 1.2 | 1.2 | 1.4
+  </table>
+
+===== [H3] 太阳聚光器 / Solar Magnifier =====
+  <table>
+    参数 | Lv1 | Lv2 | Lv3 | Lv4 | Lv5
+    技能周期/冷却（秒） (abilityCooldown) | 10 | 10 | 10 | 10 | 10
+    弹体持续时间（秒） (projectileLifetime) | 5 | 5 | 7 | 7 | 8
+    弹体间隔（秒） (timeBetweenProjectiles) | 1 | 1 | 1 | 1 | 1
+    弹体数量 (projectileCount) | 1 | 2 | 2 | 3 | 3
+    主目标每秒伤害倍率 (damagePerSecond) | 7 | 9 | 11 | 13 | 16
+    每秒伤害结算次数 (damageRate) | 5 | 5 | 5 | 5 | 5
+    溅射每秒伤害倍率 (additionalDamagePerSecond) | 3 | 4 | 5 | 6 | 7
+    溅射半径（单位） (additionalDamageRadius) | 0.4 | 0.4 | 0.4 | 0.4 | 0.4
+    弹体速度（单位/秒） (projectileSpeed) | 5 | 6 | 6 | 7 | 7
+  </table>
+
+===== [H2] 被动技能详情 =====
+
+===== [H3] 磁铁 / Magnet =====
+  <table>
+    参数 | Lv1 | Lv2 | Lv3 | Lv4 | Lv5
+    吸附半径倍率 (radiusMultiplier) | 2 | 3 | 4 | 5 | 6
+  </table>
+
+===== [H3] 羽翼 / Wings =====
+  <table>
+    参数 | Lv1 | Lv2 | Lv3 | Lv4 | Lv5
+    移动速度倍率 (speedMultiplier) | 1.1 | 1.2 | 1.3 | 1.4 | 1.5
+  </table>
+
+===== [H3] 力量护手 / Power Gauntlet =====
+  <table>
+    参数 | Lv1 | Lv2 | Lv3 | Lv4 | Lv5
+    整体伤害倍率 (damageMultiplier) | 1.1 | 1.2 | 1.3 | 1.4 | 1.5
+  </table>
+
+===== [H3] 心形护符 / Heart Charm =====
+  <table>
+    参数 | Lv1 | Lv2 | Lv3 | Lv4 | Lv5
+    最大生命倍率 (maxHPMultiplier) | 1.2 | 1.4 | 1.6 | 1.8 | 2
+  </table>
+
+===== [H3] 智慧之书 / Book Of Wisdom =====
+  <table>
+    参数 | Lv1 | Lv2 | Lv3 | Lv4 | Lv5
+    经验倍率 (xpMultiplier) | 1.1 | 1.2 | 1.3 | 1.4 | 1.5
+  </table>
+
+===== [H3] 沙漏 / Hourglass =====
+  <table>
+    参数 | Lv1 | Lv2 | Lv3 | Lv4 | Lv5
+    冷却时间倍率 (cooldownMultiplier) | 0.92 | 0.84 | 0.76 | 0.68 | 0.6
+  </table>
+
+===== [H3] 活力药水 / Vitality Potion =====
+  <table>
+    参数 | Lv1 | Lv2 | Lv3 | Lv4 | Lv5
+    每次恢复最大生命（%） (restoredHPPercent) | 1 | 2 | 3 | 4 | 5
+    恢复间隔（秒） (cooldown) | 5 | 5 | 5 | 5 | 5
+  </table>
+
+===== [H3] 泰坦盾 / Titan Shield =====
+  <table>
+    参数 | Lv1 | Lv2 | Lv3 | Lv4 | Lv5
+    减伤（%） (damageReductionPercent) | 10 | 20 | 30 | 40 | 50
+  </table>
+
+===== [H3] 风扇 / Wind Fan =====
+  <table>
+    参数 | Lv1 | Lv2 | Lv3 | Lv4 | Lv5
+    弹体速度倍率 (projectileSpeedMultiplier) | 1.1 | 1.2 | 1.3 | 1.4 | 1.5
+  </table>
+
+===== [H3] 成长豆 / Grow Bean =====
+  <table>
+    参数 | Lv1 | Lv2 | Lv3 | Lv4 | Lv5
+    技能尺寸倍率 (sizeMultiplier) | 1.1 | 1.2 | 1.3 | 1.4 | 1.5
+  </table>
+
+===== [H3] 空间宝珠 / Space Orb =====
+  <table>
+    参数 | Lv1 | Lv2 | Lv3 | Lv4 | Lv5
+    持续时间倍率 (durationMultiplier) | 1.1 | 1.2 | 1.3 | 1.4 | 1.5
+  </table>
+
+===== [H3] 黄金圣杯 / Golden Chalice =====
+  <table>
+    参数 | Lv1 | Lv2 | Lv3 | Lv4 | Lv5
+    金币收益倍率 (goldMultiplier) | 1.1 | 1.2 | 1.3 | 1.4 | 1.5
+  </table>
+
+===== [H2] 进化技能详情 =====
+
+===== [H3] 虚空星 / Void Star =====
+  <table>
+    参数 | Lv1
+    伤害倍率 (damage) | 35
+    弹体数量 (projectilesCount) | 6
+    环绕半径（单位） (radius) | 1.5
+    角速度（度/秒） (angularSpeed) | -300
+  </table>
+
+===== [H3] 时间之眼 / Time Gazer =====
+  <table>
+    参数 | Lv1
+    场半径（单位） (fieldRadius) | 1.75
+    敌人移动速度倍率 (slowDownMultiplier) | 0.5
+    伤害倍率 (damage) | 15
+    伤害间隔（秒） (damageCooldown) | 1
+  </table>
+
+===== [H3] 雷霆环 / Thunder Ring =====
+  <table>
+    参数 | Lv1
+    伤害倍率 (damage) | 50
+    电球伤害倍率 (ballDamage) | 10
+    落雷数量 (lightningsCount) | 6
+    球状闪电数量 (ballLightningCount) | 6
+    技能周期/冷却（秒） (abilityCooldown) | 4
+    连续打击间隔（秒） (durationBetweenHits) | 0.25
+  </table>
+
+===== [H3] 狼牙球 / Mace Ball =====
+  <table>
+    参数 | Lv1
+    移动速度（单位/秒） (speed) | 2
+    角速度（度/秒） (angularSpeed) | 270
+    伤害倍率 (damage) | 50
+    尺寸倍率 (size) | 1.25
+  </table>
+
+===== [H3] 银桩 / Silver Stakes =====
+  <table>
+    参数 | Lv1
+    弹体速度（单位/秒） (projectileSpeed) | 12
+    伤害倍率 (damage) | 30
+    弹体尺寸倍率 (projectileSize) | 0.75
+    弹体数量 (projectilesCount) | 5
+  </table>
+
+===== [H3] 尖刺陷阱 / Spiky Trap =====
+  <table>
+    参数 | Lv1
+    地雷数量 (minesCount) | 4
+    尖刺数量 (spikesCount) | 10
+    技能周期/冷却（秒） (abilityCooldown) | 6
+    地雷生成半径（单位） (mineSpawnRadius) | 3
+    地雷持续时间（秒） (mineLifetime) | 10
+    伤害倍率 (damage) | 50
+    尖刺伤害倍率 (spikeDamage) | 10
+    地雷尺寸倍率 (mineSize) | 2
+    触发半径（单位） (mineTriggerRadius) | 0.6
+    地雷伤害半径（单位） (mineDamageRadius) | 2
+  </table>
+
+===== [H3] 陨石 / Meteor =====
+  <table>
+    参数 | Lv1
+    弹体数量 (projectilesCount) | 4
+    弹体间隔（秒） (timeBetweenProjectiles) | 0.5
+    技能周期/冷却（秒） (abilityCooldown) | 6
+    伤害倍率 (damage) | 30
+    爆炸半径（单位） (explosionRadius) | 1.5
+  </table>
+
+===== [H3] 反弹回旋镖 / Recoiler =====
+  <table>
+    参数 | Lv1
+    弹体持续时间（秒） (projectileLifetime) | 4
+    技能周期/冷却（秒） (abilityCooldown) | 5
+    飞行距离（单位） (projectileTravelDistance) | 4
+    角速度（度/秒） (angularSpeed) | -300
+    伤害倍率 (damage) | 30
+    弹体尺寸倍率 (projectileSize) | 1.2
+  </table>
+
+===== [H3] 双飞刀 / Twin Daggers =====
+  <table>
+    参数 | Lv1
+    弹体数量 (projectileCount) | 10
+    技能周期/冷却（秒） (abilityCooldown) | 5
+    伤害倍率 (damage) | 25
+  </table>
+
+===== [H3] 月光投射器 / Lunar Projector =====
+  <table>
+    参数 | Lv1
+    弹体数量 (projectileCount) | 18
+    弹体持续时间（秒） (projectileLifetime) | 2.5
+    技能周期/冷却（秒） (abilityCooldown) | 5
+    初始半径（单位） (initialRadius) | 2.5
+    角速度（度/秒） (angularSpeed) | 200
+    伤害倍率 (damage) | 4
+  </table>
+
+===== [H3] 远古权杖 / Ancient Scepter =====
+  <table>
+    参数 | Lv1
+    技能周期/冷却（秒） (abilityCooldown) | 0.2
+    弹体速度（单位/秒） (projectileSpeed) | 10
+    伤害倍率 (damage) | 15
+    弹体尺寸倍率 (projectileSize) | 1
+    弹体持续时间（秒） (projectileLifetime) | 5
+  </table>
+
+===== [H3] 神圣之刃 / Sacred Blade =====
+  <table>
+    参数 | Lv1
+    技能周期/冷却（秒） (abilityCooldown) | 2
+    连续挥砍次数 (slashesCount) | 5
+    伤害倍率 (damage) | 30
+    剑波伤害倍率 (waveDamage) | 5
+    挥砍尺寸倍率 (slashSize) | 1.4
+    挥砍间隔（秒） (timeBetweenSlashes) | 0.2
+  </table>
+
+===== [H2] 满级奖励详情 =====
+
+===== [H3] 治疗奖励 / Heal =====
+  <table>
+    参数 | Lv1
+    一次恢复最大生命（%） (healPersentage) | 40
+  </table>
+
+===== [H3] 金币奖励 / Gold =====
+  <table>
+    参数 | Lv1
+    一次金币数量 (goldAmount) | 40
+  </table>
+
+===== [H2] 普通怪兽总览 =====
+  <table>
+    怪兽 | EnemyType ID | 基础生命 | 接触伤害 | 速度 | 可击退 | 定位
+    南瓜怪 | 0 | 45 | 5 | 0.2 | 否 | 慢速接近
+    蝙蝠 | 1 | 8 | 10 | 0.8 | 是 | 快速接近
+    史莱姆 | 2 | 20 | 3 | 0.2 | 否 | 慢速接近
+    吸血鬼 | 3 | 120 | 10 | 0.4 | 否 | 接近攻击；名称不代表吸血机制
+    食人植物 | 4 | 90 | 10 | 0.2 | 否 | 慢速高血量
+    水母 | 5 | 20 | 4 | 0.2 | 否 | 慢速接近
+    小虫 | 8 | 10 | 5 | 0.6 | 是 | 较快接近
+    黄蜂 | 9 | 8 | 4 | 0.5 | 是 | 接近攻击
+    怪手 | 10 | 80 | 10 | 1.1 | 否 | 较快接近；与面具 Boss 的召唤手是不同预制体
+    独眼怪 | 11 | 120 | 3 | 0.3 | 否 | 慢速高血量
+    火焰史莱姆 | 12 | 80 | 15 | 0.4 | 否 | 接近攻击；未发现独立燃烧状态
+    紫水母 | 13 | 15 | 4 | 1.3 | 是 | 高速低血量
+    锹形虫 | 14 | 80 | 10 | 0.6 | 是 | 较快接近
+    暗影 | 15 | 2 | 1 | 1 | 否 | 高速脆弱；虚空 Boss 可召唤
+    暗影水母 | 16 | 1000 | 15 | 0.4 | 否 | 远程精英：环形弹幕
+    暗影蝙蝠 | 17 | 8 | 10 | 0.8 | 是 | 快速接近
+    暗影吸血鬼 | 18 | 120 | 10 | 0.4 | 否 | 接近攻击
+  </table>
+
+===== [H3] 南瓜怪 / Enemy Pumpkin =====
+
+===== [H3] 蝙蝠 / Enemy Bat =====
+
+===== [H3] 史莱姆 / Enemy Slime =====
+
+===== [H3] 吸血鬼 / Enemy Vampire =====
+
+===== [H3] 食人植物 / Enemy Plant =====
+
+===== [H3] 水母 / Enemy Jellyfish =====
+
+===== [H3] 小虫 / Enemy Bug =====
+
+===== [H3] 黄蜂 / Enemy Wasp =====
+
+===== [H3] 怪手 / Enemy Hand =====
+
+===== [H3] 独眼怪 / Enemy Eye =====
+
+===== [H3] 火焰史莱姆 / Enemy Fire Slime =====
+
+===== [H3] 紫水母 / Enemy Jellyfish Purple =====
+
+===== [H3] 锹形虫 / Enemy Stag Beetle =====
+
+===== [H3] 暗影 / Enemy Shade =====
+
+===== [H3] 暗影水母 / Enemy Jellyfish Shade =====
+
+===== [H3] 暗影蝙蝠 / Enemy Bat Shade =====
+
+===== [H3] 暗影吸血鬼 / Enemy Vampire Shade =====
+
+===== [H2] Boss 总览 =====
+  <table>
+    Boss | BossType ID | 基础生命 | 接触伤害 | 基础速度 | 类型
+    神秘面具 | 0 | 1400 | 12 | 0.7 | 召唤／环形弹幕
+    巨型史莱姆 | 1 | 1200 | 30 | 0.2 | 剑阵／召唤
+    黄蜂女王 | 2 | 4000 | 20 | 1 | 冲锋／地雷
+    强力巨蟹 | 3 | 1400 | 10 | 2 | 地刺／潜地无敌
+    虚空 | 4 | 3000 | 20 | 0 | 黑洞／传送／召唤
+    丧钟 | 5 | 3000 | 15 | 1 | 多阶段弹幕
+  </table>
+
+===== [H3] 当前关卡出场安排 =====
+  <table>
+    关卡 | 提示时间（分:秒） | Boss | 启用宝箱（仍需可用升级）
+    Stage 1 | 2:55.00 | 巨型史莱姆 | 是
+    Stage 1 | 5:55.00 | 强力巨蟹 | 是
+    Stage 1 | 9:55.00 | 黄蜂女王 | 否
+    Stage 2 | 2:55.00 | 神秘面具 | 是
+    Stage 2 | 5:55.00 | 丧钟 | 是
+    Stage 2 | 9:58.00 | 虚空 | 否
+  </table>
+
+===== [H3] 神秘面具 / MYSTERIOUS MASK =====
+  <table>
+    Boss 专用配置字段 | 配置值
+    m_ObjectHideFlags | 0
+    m_Enabled | 1
+    m_EditorHideFlags | 0
+    attackCooldown | 3
+    projectilesCount | 8
+    handDamage | 10
+  </table>
+
+===== [H3] 巨型史莱姆 / MEGA SLIME =====
+  <table>
+    Boss 专用配置字段 | 配置值
+    m_ObjectHideFlags | 0
+    m_Enabled | 1
+    m_EditorHideFlags | 0
+    swordsWavesCount | 10
+    durationBetweenSwordWaves | 0
+    swordDamage | 20
+    movingDuration | 3
+    spawnedEnemyType | 2
+    spawningWavesCount | 3
+    spawnedEnemiesCount | 3
+    durationBetweenSpawning | 1.5
+    durationBetweenWarningAndSpawning | 0.5
+  </table>
+
+===== [H3] 黄蜂女王 / QUEEN WASP =====
+  <table>
+    Boss 专用配置字段 | 配置值
+    m_ObjectHideFlags | 0
+    m_Enabled | 1
+    m_EditorHideFlags | 0
+    chargeSpriteDistance | 6
+    chargeWarningDuration | 1
+    chargeMovementDuration | 1
+    chargeMovementSpeed | 8
+    chargesCount | 3
+    minesAmount | 3
+    attacksCount | 3
+    timeBetweenAttacks | 0.5
+    mineDamageMultiplier | 10
+    followingPlayerDuration | 2
+  </table>
+
+===== [H3] 强力巨蟹 / MIGHTY CRAB =====
+  <table>
+    Boss 专用配置字段 | 配置值
+    m_ObjectHideFlags | 0
+    m_Enabled | 1
+    m_EditorHideFlags | 0
+    burrowedDuration | 4
+    burrowedMoveSpeed | 1.6
+    chargingWavesCount | 5
+    spikeSpeed | 5
+    timeBetweenSpikes | 0.05
+    spikeDamage | 4
+  </table>
+
+===== [H3] 虚空 / THE VOID =====
+  <table>
+    Boss 专用配置字段 | 配置值
+    m_ObjectHideFlags | 0
+    m_Enabled | 1
+    m_EditorHideFlags | 0
+  </table>
+
+===== [H3] 丧钟 / FOR WHOM THE BELL TOLLS =====
+  <table>
+    Boss 专用配置字段 | 配置值
+    m_ObjectHideFlags | 0
+    m_Enabled | 1
+    m_EditorHideFlags | 0
+    attackCooldown | 1.5
+    movementCooldown | 0.5
+    simpleAttackWavesCount | 5
+    simpleAttackDamage | 10
+    simpleAttackProjectileCooldown | 0.2
+    simpleAttackStayDuration | 0.3
+    slowAttackRadialAmount | 10
+    slowAttackWavesAmount | 5
+    slowAttackDamage | 10
+    slowAttackWaveCooldown | 0.7
+    burstAttackRadialAmount | 50
+    burstAttackSingleBurstAmount | 4
+    burstAttackDamage | 4
+    burstAttackProjectileCooldown | 0.05
+  </table>
+
+===== [H2] 波次数值覆盖 =====
+  <table>
+    关卡 | 起点（秒） | 时长（秒） | 怪兽/轨道 | HP 替换 | 伤害系数替换 | 速度替换 | 掉落替换
+    Stage 1 | 110.0 | 1.0 | 蝙蝠 | — | — | 2 | —
+    Stage 1 | 114.0 | 1.0 | 蝙蝠 | — | — | 2.2 | —
+    Stage 1 | 118.0 | 1.0 | 蝙蝠 | — | — | 2.4 | —
+    Stage 1 | 125.0 | 35.0 | 小虫 | 15 | — | — | —
+    Stage 1 | 145.0 | 25.0 | 蝙蝠 | 15 | — | — | —
+    Stage 1 | 160.0 | 15.0 | 小虫 | 15 | — | — | —
+    Stage 1 | 230.0 | 50.0 | 小虫 | — | — | 0.7 | —
+    Stage 1 | 325.0 | 15.0 | 南瓜怪 | — | — | — | 开启
+    Stage 1 | 340.0 | 15.0 | 南瓜怪 | — | — | — | 开启
+    Stage 1 | 360.0 | 30.0 | 蝙蝠 | — | — | — | 开启
+    Stage 1 | 360.0 | 80.0 | 小虫 | — | — | — | 开启
+    Stage 1 | 390.0 | 145.0 | 蝙蝠 | — | — | — | 开启
+    Stage 1 | 390.0 | 70.0 | 史莱姆 | — | — | — | 开启
+    Stage 1 | 460.0 | 75.0 | 食人植物 | — | — | — | 开启
+    Stage 1 | 470.0 | 40.0 | 南瓜怪 | — | — | — | 开启
+    Stage 1 | 500.0 | 80.0 | 小虫 | — | — | — | 开启
+    Stage 2 | 0.0 | 20.0 | 黄蜂 | — | — | — | 开启
+    Stage 2 | 30.0 | 30.0 | 黄蜂 | — | — | — | 开启
+    Stage 2 | 70.0 | 5.0 | 独眼怪 | 100 | — | 0.1 | —
+    Stage 2 | 73.0 | 12.0 | 暗影蝙蝠 | 15 | — | 0.5 | —
+    Stage 2 | 100.0 | 10.0 | 暗影蝙蝠 | 15 | — | 0.5 | —
+    Stage 2 | 110.0 | 40.0 | 暗影吸血鬼 | — | — | — | 开启
+    Stage 2 | 183.017 | 5.0 | 黄蜂 | — | — | 0.5 | —
+    Stage 2 | 210.0 | 5.0 | 黄蜂 | — | — | 0.5 | —
+    Stage 2 | 249.0 | 5.0 | 黄蜂 | — | — | 0.5 | —
+    Stage 2 | 254.0 | 46.0 | 水母 | — | — | 0.5 | 开启
+    Stage 2 | 295.0 | 60.0 | 怪手 | — | — | 0.9 | —
+    Stage 2 | 360.0 | 89.0 | 水母 | 35 | — | 0.8 | 开启
+    Stage 2 | 440.0 | 20.0 | 怪手 | — | — | 0.8 | —
+    Stage 2 | 545.0 | 45.0 | 暗影水母 | 150 | — | 0.4 | 开启
+  </table>
+
+===== [H2] 掉落与配套规则 =====
+
+===== [H2] 资料缺口与核对备注 =====

@@ -71,7 +71,8 @@ public class CharacterAttackEffect : MonoBehaviour
         effect.kind = effectKind;
         effect.lifetime = duration;
         effect.color = CharacterCatalog.Colors[(int)owner.role];
-        if (owner.GetVesselSkillLevel(UpgradeType.SidewallForceps) > 0)
+        if (owner.GetVesselSkillLevel(UpgradeType.SidewallForceps) > 0 ||
+            owner.GetVesselSkillLevel(UpgradeType.BloodRecycleForceps) > 0)
             effect.color = new Color(0.95f, 0.16f, 0.22f, 1f);
         EnsureEffectMaterial();
         if (effectMaterial == null)
@@ -175,6 +176,18 @@ public class CharacterAttackEffect : MonoBehaviour
         effect.NewLine(0.16f);
     }
 
+    // Blood-red expanding ring for the forceps lifesteal proc / evolution.
+    public static void SidewallHealPulse(CharacterCombat owner, Vector3 position, float radius, bool evolved)
+    {
+        if (owner == null) return;
+        CharacterAttackEffect effect = Create(owner, position, CharacterEffectKind.Flash, 0.55f);
+        effect.radius = radius;
+        effect.color = evolved
+            ? new Color(0.95f, 0.06f, 0.12f, 1f)
+            : new Color(1f, 0.28f, 0.34f, 1f);
+        effect.NewLine(evolved ? 0.20f : 0.14f);
+    }
+
     public static void SutureLightning(CharacterCombat owner, Vector3 target, bool enhanced)
     {
         if (owner == null) return;
@@ -265,7 +278,7 @@ public class CharacterAttackEffect : MonoBehaviour
                     case ProjectilePayload.Missile:
                         Burst(source, destination, GameBalance.Get("nurse.missile_radius", 1.7f),
                             source.weapon.bulletDamage * GameBalance.GetInt("nurse.missile_damage_mult", 4) +
-                            GameBalance.GetInt("nurse.missile_damage_add", 2), false);
+                            GameBalance.GetInt("nurse.missile_damage_add", 20), false);
                         break;
                     case ProjectilePayload.Ampoule:
                         source.AmpouleImpact(destination);

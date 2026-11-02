@@ -108,10 +108,13 @@ public class ExperienceOrb : MonoBehaviour
         int level = 0;
         if (cachedSkills != null) level = cachedSkills.GetLevel(UpgradeType.SuctionTube);
         else if (cachedCombat != null) level = cachedCombat.GetVesselSkillLevel(UpgradeType.SuctionTube);
-        level = Mathf.Clamp(level, 0, LevelUpManager.SkillMaxLevel);
+        level = Mathf.Clamp(level, 0, VesselSkillCatalog.MaxLevelFor(UpgradeType.SuctionTube));
         if (level <= 0) { magnetRange = baseMagnetRange; return; }
-        float mult = level >= 3 ? GameBalance.Get("skill.tube.magnet_lv3", 1.3f)
-            : (level == 2 ? GameBalance.Get("skill.tube.magnet_lv2", 1.2f) : GameBalance.Get("skill.tube.magnet_lv1", 1.1f));
+        float mult = level >= 5 ? GameBalance.Get("skill.tube.magnet_lv5", 1.5f)
+            : (level == 4 ? GameBalance.Get("skill.tube.magnet_lv4", 1.4f)
+            : (level == 3 ? GameBalance.Get("skill.tube.magnet_lv3", 1.3f)
+            : (level == 2 ? GameBalance.Get("skill.tube.magnet_lv2", 1.2f)
+            : GameBalance.Get("skill.tube.magnet_lv1", 1.1f))));
         magnetRange = baseMagnetRange * mult;
     }
 }

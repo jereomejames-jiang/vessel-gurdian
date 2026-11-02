@@ -116,11 +116,7 @@ public class UIManager : MonoBehaviour
         if (characterCombat == null) characterCombat = FindAnyObjectByType<CharacterCombat>();
         if (playerSkillCollection == null) playerSkillCollection = FindAnyObjectByType<PlayerSkillCollection>();
         // GameManager.Awake may run after this object's OnEnable; retry the hookup here.
-        if (gameManager == null)
-        {
-            gameManager = GameManager.Instance;
-            if (gameManager != null) gameManager.OnGameEnded += ShowGameOver;
-        }
+        EnsureGameManager();
         if (playerStats != null)
         {
             UpdateHP(playerStats.currentHP, playerStats.maxHP);
@@ -130,6 +126,9 @@ public class UIManager : MonoBehaviour
 
     void Update()
     {
+        // The scene may instantiate GameManager after UIManager.Start. Keep the
+        // pause/end wiring live instead of silently running with a null manager.
+        EnsureGameManager();
         if (characterCombat == null) characterCombat = FindAnyObjectByType<CharacterCombat>();
         if (LevelText != null && playerStats != null)
         {
@@ -150,6 +149,7 @@ public class UIManager : MonoBehaviour
         if (VictoryPanel != null && VictoryPanel.activeSelf &&
             (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.Space))) RestartGameFromResult();
         UpdateRunHud();
+        UpdateShieldHud();
         UpdateTestLabels();
     }
 
@@ -211,6 +211,33 @@ public class UIManager : MonoBehaviour
             if (hpValueText == null) EnsureHPValueText();
             return hpValueText;
         }
+    }
+
+    Text shieldText;
+    public Text ShieldText
+    {
+        get
+        {
+            if (shieldText == null) EnsureShieldText();
+            return shieldText;
+        }
+    }
+
+    void EnsureShieldText()
+    {
+        if (HPSlider == null) return;
+        Transform existing = HPSlider.transform.Find("ShieldText");
+        if (existing != null) { shieldText = existing.GetComponent<Text>(); if (shieldText != null) return; }
+        shieldText = CreateText(HPSlider.transform, "ShieldText", "", 15, TextAnchor.MiddleLeft,
+            new Vector2(150f, 0f), new Vector2(150f, 24f));
+        if (shieldText == null) return;
+        shieldText.raycastTarget = false;
+        shieldText.color = new Color(0.45f, 0.86f, 1f, 1f);
+        Outline outline = shieldText.GetComponent<Outline>();
+        if (outline == null) outline = shieldText.gameObject.AddComponent<Outline>();
+        outline.effectColor = new Color(0f, 0f, 0f, 0.55f);
+        outline.effectDistance = new Vector2(0.5f, 0.5f);
+        outline.useGraphicAlpha = false;
     }
 
     void EnsureHPValueText()
@@ -333,9 +360,10 @@ public class UIManager : MonoBehaviour
     {
         if (playerSkillCollection == null) playerSkillCollection = FindAnyObjectByType<PlayerSkillCollection>();
         int current = playerSkillCollection == null ? 0 : playerSkillCollection.GetLevel(option.type);
-        if (current <= 0) return "Lv 1";
-        if (current >= 3) return "Lv 3  MAX";
-        return "Lv " + current + " → " + Mathf.Clamp(current + 1, 1, 3);
+        int maxLevel = VesselSkillCatalog.MaxLevelFor(option.type);
+        if (current <= 0) return maxLevel <= 1 ? "Lv 1  MAX" : "Lv 1";
+        if (current >= maxLevel) return "Lv " + maxLevel + "  MAX";
+        return "Lv " + current + " → " + Mathf.Clamp(current + 1, 1, maxLevel);
     }
 
     public string CardShortText(UpgradeOption option)
@@ -543,6 +571,16 @@ public class UIManager : MonoBehaviour
             "   ·   经验 " + currentXp.ToString("000") + " / " + needed.ToString("000");
     }
 
+    public void UpdateShieldHud()
+    {
+        Text label = ShieldText;
+        if (label == null) return;
+        float shield = playerStats == null ? 0f : playerStats.temporaryShield;
+        bool visible = shield > 0.5f;
+        label.gameObject.SetActive(visible);
+        if (visible) label.text = "护盾 " + Mathf.RoundToInt(shield);
+    }
+
     public void ShowVictoryPanel()
     {
         EnsureVictoryView();
@@ -655,8 +693,18 @@ public class UIManager : MonoBehaviour
         else PauseGame();
     }
 
+    void EnsureGameManager()
+    {
+        GameManager current = GameManager.Instance;
+        if (gameManager == current) return;
+        if (gameManager != null) gameManager.OnGameEnded -= ShowGameOver;
+        gameManager = current;
+        if (gameManager != null) gameManager.OnGameEnded += ShowGameOver;
+    }
+
     public void PauseGame()
     {
+        EnsureGameManager();
         if (PausePanel == null) EnsurePauseView();
         if (PausePanel == null) return;
         if (gameManager != null && gameManager.gameEnded) return;
@@ -671,6 +719,7 @@ public class UIManager : MonoBehaviour
 
     public void ResumeGame()
     {
+        EnsureGameManager();
         isPausedByMenu = false;
         if (PausePanel != null) PausePanel.SetActive(false);
         if (pauseButton != null && (gameManager == null || !gameManager.gameEnded))

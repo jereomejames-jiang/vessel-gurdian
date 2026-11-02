@@ -10,11 +10,24 @@ public static class GameBalance
     {
         if (values != null) return;
         values = new Dictionary<string, float>();
-        TextAsset csv = Resources.Load<TextAsset>("balance");
+        // skill_balance.csv is generated from 技能数据.xlsx and intentionally
+        // loads last, so skill-specific values override the generic balance table.
+        bool loadedBase = LoadResource("balance", true);
+        LoadResource("skill_balance", false);
+        if (!loadedBase && values.Count == 0)
+            Debug.LogWarning("GameBalance: Resources/balance.csv 未找到，全部使用脚本默认值");
+        else
+            Debug.Log($"GameBalance: 已加载 {values.Count} 项数值配置");
+    }
+
+    static bool LoadResource(string resourceName, bool required)
+    {
+        TextAsset csv = Resources.Load<TextAsset>(resourceName);
         if (csv == null)
         {
-            Debug.LogWarning("GameBalance: Resources/balance.csv 未找到，全部使用脚本默认值");
-            return;
+            if (required)
+                Debug.LogWarning("GameBalance: Resources/" + resourceName + ".csv 未找到，使用脚本默认值");
+            return false;
         }
 
         string[] lines = csv.text.Split('\n');
@@ -29,7 +42,7 @@ public static class GameBalance
             if (float.TryParse(parts[2].Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out float value))
                 values[key] = value;
         }
-        Debug.Log($"GameBalance: 已加载 {values.Count} 项数值配置");
+        return true;
     }
 
     public static float Get(string key, float fallback)

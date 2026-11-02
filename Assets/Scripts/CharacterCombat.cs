@@ -23,9 +23,15 @@ public class CharacterCombat : MonoBehaviour
     public List<GameObject> flushNeedles = new List<GameObject>(4);
     public List<GameObject> catheters = new List<GameObject>(3);
     public GameObject membraneShield;
+    public GameObject sidewallAura;
+    [System.NonSerialized] public LineRenderer[] sidewallRings;
     public List<CharacterAttackEffect> hemostatPools = new List<CharacterAttackEffect>(3);
     public HashSet<Enemy> hookedEnemies = new HashSet<Enemy>();
     public float ablationBombTimer;
+    public float needleBulletTimer;
+    public int needleVolleyIndex;
+    public Dictionary<Enemy, float> rinseNextHitTime = new Dictionary<Enemy, float>();
+    public float rinseHitCleanupTimer;
 
     public void Start() { Initialize(CharacterCatalog.SelectedRole); }
 
@@ -56,13 +62,17 @@ public class CharacterCombat : MonoBehaviour
             (GameManager.Instance != null && GameManager.Instance.gameEnded)) return;
         int flush = GetVesselSkillLevel(UpgradeType.FlushNeedle);
         if (flush <= 0) return;
-        EnsureFlushNeedles(flush + GameBalance.GetInt("skill.rinse.count_base", 1));
+        EnsureFlushNeedles(FlushNeedleCount(flush));
         if (flushNeedles.Count == 0) return;
 
-        float radius = GameBalance.Get("skill.rinse.radius_base", 1.25f) + flush * GameBalance.Get("skill.rinse.radius_per_level", 0.18f);
+        // Workbook 1001: the orbit radius is a flat 1.5 at every level, counts are
+        // 2..6, and each needle now deals its per-level collision damage.
+        float radius = GameBalance.Get("skill.rinse.radius_base", 1.5f) +
+            (flush - 1) * GameBalance.Get("skill.rinse.radius_per_level", 0f);
         float hitRadius = GameBalance.Get("skill.rinse.hit_radius", 0.55f);
-        float spin = GameBalance.Get("skill.rinse.angular_base", 95f) + flush * GameBalance.Get("skill.rinse.angular_per_level", 12f);
+        float spin = RinseAngularSpeed(flush);
         float knockback = GameBalance.Get("skill.rinse.knockback", 0.18f) * 60f * Time.fixedDeltaTime;
+        float hitInterval = GameBalance.Get("skill.rinse.hit_interval", 0.5f);
 
         RefreshTargets();
         for (int i = 0; i < flushNeedles.Count; i++)
@@ -73,9 +83,25 @@ public class CharacterCombat : MonoBehaviour
             for (int j = 0; j < targets.Count; j++)
             {
                 Enemy enemy = targets[j];
-                if (enemy != null && (enemy.transform.position - pos).sqrMagnitude < hitRadius * hitRadius)
-                    enemy.ApplyKnockback((enemy.transform.position - transform.position).normalized, knockback);
+                if (enemy == null || enemy.currentHP <= 0) continue;
+                if ((enemy.transform.position - pos).sqrMagnitude >= hitRadius * hitRadius) continue;
+                enemy.ApplyKnockback((enemy.transform.position - transform.position).normalized, knockback);
+                float nextHit;
+                if (!rinseNextHitTime.TryGetValue(enemy, out nextHit) || Time.time >= nextHit)
+                {
+                    enemy.TakeDamage(Mathf.Max(1, RinseDamage(flush)));
+                    rinseNextHitTime[enemy] = Time.time + Mathf.Max(0.05f, hitInterval);
+                }
             }
+        }
+        if (Time.time >= rinseHitCleanupTimer)
+        {
+            rinseHitCleanupTimer = Time.time + 5f;
+            List<Enemy> stale = null;
+            foreach (KeyValuePair<Enemy, float> pair in rinseNextHitTime)
+                if (pair.Key == null || pair.Key.currentHP <= 0)
+                    (stale ?? (stale = new List<Enemy>())).Add(pair.Key);
+            if (stale != null) for (int i = 0; i < stale.Count; i++) rinseNextHitTime.Remove(stale[i]);
         }
     }
 
@@ -85,6 +111,7 @@ public class CharacterCombat : MonoBehaviour
             (GameManager.Instance != null && GameManager.Instance.gameEnded)) return;
         evolutionNoticeTimer = Mathf.Max(0f, evolutionNoticeTimer - Time.deltaTime);
         VesselSkillUpdate();
+        UpdateSidewallAura();
         if (rank < 4) return;
         specialTimer -= Time.deltaTime;
         if (specialTimer > 0f) return;
@@ -172,13 +199,58 @@ public class CharacterCombat : MonoBehaviour
 
     public void ApplyVesselSkill(UpgradeType type, int level)
     {
-        level = Mathf.Clamp(level, 1, 3);
+        level = Mathf.Clamp(level, 1, VesselSkillCatalog.MaxLevelFor(type));
         if (type == UpgradeType.MembraneStent && stats != null) stats.ConfigureMembraneStent(level);
         if (type == UpgradeType.MembraneStent) EnsureMembraneShield(level);
-        if (type == UpgradeType.FlushNeedle) EnsureFlushNeedles(level + GameBalance.GetInt("skill.rinse.count_base", 1));
-        if (type == UpgradeType.ThrombusCatheter) EnsureCatheters(level);
+        if (type == UpgradeType.HeartAmulet && stats != null) stats.ApplyHeartAmulet(level);
+        if (type == UpgradeType.FlushNeedle) EnsureFlushNeedles(FlushNeedleCount(level));
+        if (type == UpgradeType.ThrombusCatheter) EnsureCatheters(CatheterCount(level));
+        if (type == UpgradeType.SidewallForceps || type == UpgradeType.BloodRecycleForceps)
+        {
+            EnsureSidewallAura(level);
+            // A one-shot ring on acquisition/level-up so the passive upgrade is
+            // immediately visible even before the next lifesteal proc.
+            CharacterAttackEffect.SidewallHealPulse(this, transform.position,
+                type == UpgradeType.BloodRecycleForceps ? 1.25f : 0.9f,
+                type == UpgradeType.BloodRecycleForceps);
+        }
         evolutionNotice = VesselSkillCatalog.GlyphFor(type) + "  " + CharacterCatalog.Name(role) + "获得 " + VesselSkillCatalog.EducationFor(type).Split('。')[0];
         evolutionNoticeTimer = 3.5f;
+    }
+
+    public static int FlushNeedleCount(int level)
+    {
+        int fallback = level + GameBalance.GetInt("skill.rinse.count_base", 1);
+        return Mathf.Clamp(GameBalance.GetInt("skill.rinse.count_lv" + level, fallback), 1, 8);
+    }
+
+    public static int RinseDamage(int level)
+    {
+        switch (Mathf.Clamp(level, 1, VesselSkillCatalog.StandardMaxLevel))
+        {
+            case 1: return GameBalance.GetInt("skill.rinse.damage_lv1", 5);
+            case 2: return GameBalance.GetInt("skill.rinse.damage_lv2", 10);
+            case 3: return GameBalance.GetInt("skill.rinse.damage_lv3", 10);
+            case 4: return GameBalance.GetInt("skill.rinse.damage_lv4", 15);
+            default: return GameBalance.GetInt("skill.rinse.damage_lv5", 20);
+        }
+    }
+
+    public static float RinseAngularSpeed(int level)
+    {
+        switch (Mathf.Clamp(level, 1, VesselSkillCatalog.StandardMaxLevel))
+        {
+            case 1: return GameBalance.Get("skill.rinse.angular_lv1", 200f);
+            case 2: return GameBalance.Get("skill.rinse.angular_lv2", 200f);
+            case 3: return GameBalance.Get("skill.rinse.angular_lv3", 200f);
+            case 4: return GameBalance.Get("skill.rinse.angular_lv4", 250f);
+            default: return GameBalance.Get("skill.rinse.angular_lv5", 300f);
+        }
+    }
+
+    public static int CatheterCount(int level)
+    {
+        return Mathf.Clamp(GameBalance.GetInt("skill.suction.count_lv" + level, level), 1, 8);
     }
 
     public void EnsureMembraneShield(int level)
@@ -234,12 +306,85 @@ public class CharacterCombat : MonoBehaviour
         membraneShield.transform.localScale = Vector3.one * (1f + 0.09f * level);
     }
 
+    // A persistent red "blood ring" makes the passive forceps state readable at a
+    // glance and gets stronger with each level. It is intentionally subtle enough
+    // not to hide enemies, but visible enough to confirm the upgrade landed.
+    public void EnsureSidewallAura(int level)
+    {
+        CharacterAttackEffect.EnsureEffectMaterial();
+        Material mat = CharacterAttackEffect.effectMaterial;
+        if (mat == null)
+        {
+            SpriteRenderer selfRenderer = GetComponent<SpriteRenderer>();
+            if (selfRenderer != null) mat = selfRenderer.sharedMaterial;
+        }
+        if (sidewallAura == null)
+        {
+            sidewallAura = new GameObject("侧壁钳血环");
+            sidewallAura.transform.SetParent(transform, false);
+            CreateSidewallRing("外环", 1.05f, 0.08f, mat);
+            CreateSidewallRing("内环", 0.82f, 0.045f, mat);
+            sidewallRings = sidewallAura.GetComponentsInChildren<LineRenderer>();
+        }
+        if (sidewallRings == null || sidewallRings.Length == 0)
+            sidewallRings = sidewallAura.GetComponentsInChildren<LineRenderer>();
+        UpdateSidewallAura();
+    }
+
+    void CreateSidewallRing(string ringName, float radius, float width, Material mat)
+    {
+        GameObject obj = new GameObject(ringName);
+        obj.transform.SetParent(sidewallAura.transform, false);
+        LineRenderer ring = obj.AddComponent<LineRenderer>();
+        if (mat != null) ring.sharedMaterial = mat;
+        ring.useWorldSpace = false;
+        ring.positionCount = 65;
+        ring.loop = true;
+        ring.startWidth = ring.endWidth = width;
+        ring.sortingOrder = 7;
+        for (int i = 0; i < 65; i++)
+        {
+            float radians = i * Mathf.PI * 2f / 64f;
+            ring.SetPosition(i, new Vector3(Mathf.Cos(radians), Mathf.Sin(radians), 0f) * radius);
+        }
+    }
+
+    public void UpdateSidewallAura()
+    {
+        if (sidewallAura == null) return;
+        int sidewall = GetVesselSkillLevel(UpgradeType.SidewallForceps);
+        int evolution = GetVesselSkillLevel(UpgradeType.BloodRecycleForceps);
+        if (sidewall <= 0 && evolution <= 0)
+        {
+            sidewallAura.SetActive(false);
+            return;
+        }
+        sidewallAura.SetActive(true);
+        int level = Mathf.Clamp(sidewall, 1, VesselSkillCatalog.MaxLevelFor(UpgradeType.SidewallForceps));
+        bool evolved = evolution > 0;
+        float pulse = 0.5f + 0.5f * Mathf.Sin(Time.time * 3.5f);
+        float alpha = (evolved ? 0.40f : 0.26f) + 0.035f * level + 0.06f * pulse;
+        Color tint = evolved
+            ? new Color(0.92f, 0.04f, 0.10f, 1f)
+            : new Color(0.95f, 0.20f, 0.26f, 1f);
+        LineRenderer[] rings = sidewallRings;
+        if (rings == null || rings.Length == 0) rings = sidewallAura.GetComponentsInChildren<LineRenderer>();
+        for (int i = 0; i < rings.Length; i++)
+        {
+            Color ringColor = tint;
+            ringColor.a = Mathf.Clamp01(alpha * (i == 0 ? 1f : 0.68f));
+            rings[i].startColor = rings[i].endColor = ringColor;
+        }
+        float scale = 1f + 0.04f * level + 0.03f * pulse;
+        sidewallAura.transform.localScale = Vector3.one * scale;
+        sidewallAura.transform.localRotation = Quaternion.Euler(0f, 0f, Mathf.Sin(Time.time * 0.8f) * 6f);
+    }
+
     public void HandleAttackSkills()
     {
-        int sidewall = GetVesselSkillLevel(UpgradeType.SidewallForceps);
         int suture = GetVesselSkillLevel(UpgradeType.Suture);
         if (suture > 0) SutureStrike(suture);
-        if (sidewall > 0) { /* healing is triggered by each hit in DamageArea/Bullet */ }
+        // Sidewall/evolution healing is triggered by each hit in DamageArea/Bullet.
     }
 
     public void VesselSkillUpdate()
@@ -250,8 +395,13 @@ public class CharacterCombat : MonoBehaviour
             vesselSkillTimer -= Time.deltaTime;
             if (vesselSkillTimer <= 0f)
             {
+                // Workbook 1002: 2.8 / 2.45 / 2.1 / 1.75 / 1.4. The first level is
+                // the unmodified base, so the reduction starts at Lv2.
+                float fallbackPeriod = Mathf.Max(GameBalance.Get("skill.scissors.period_min", 1.2f),
+                    GameBalance.Get("skill.scissors.period_base", 2.8f) -
+                    (scissors - 1) * GameBalance.Get("skill.scissors.period_per_level", 0.35f));
                 vesselSkillTimer = Mathf.Max(GameBalance.Get("skill.scissors.period_min", 1.2f),
-                    GameBalance.Get("skill.scissors.period_base", 2.8f) - scissors * GameBalance.Get("skill.scissors.period_per_level", 0.35f));
+                    GameBalance.Get("skill.scissors.period_lv" + scissors, fallbackPeriod));
                 Vector2 aim = AimDirection();
                 float radius = scissors >= 2 ? GameBalance.Get("skill.scissors.radius_lv2", 4.1f) : GameBalance.Get("skill.scissors.radius_lv1", 3.3f);
                 CharacterAttackEffect.Sector(this, transform.position, aim, radius,
@@ -264,12 +414,12 @@ public class CharacterCombat : MonoBehaviour
         }
 
         int flush = GetVesselSkillLevel(UpgradeType.FlushNeedle);
-        if (flush > 0) EnsureFlushNeedles(flush + GameBalance.GetInt("skill.rinse.count_base", 1));
+        if (flush > 0) EnsureFlushNeedles(FlushNeedleCount(flush));
 
         int catheter = GetVesselSkillLevel(UpgradeType.ThrombusCatheter);
         if (catheter > 0)
         {
-            EnsureCatheters(catheter);
+            EnsureCatheters(CatheterCount(catheter));
             catheterTimer -= Time.deltaTime;
             for (int i = 0; i < catheters.Count; i++)
             {
@@ -305,9 +455,110 @@ public class CharacterCombat : MonoBehaviour
             ablationBombTimer -= Time.deltaTime;
             if (ablationBombTimer <= 0f)
             {
-                ablationBombTimer = GameBalance.Get("skill.ablation.interval", 2.5f);
+                ablationBombTimer = GameBalance.Get("skill.ablation.interval", 5f);
                 ThrowAblationBombs(bomb);
             }
+        }
+
+        UpdateNeedleBullet();
+    }
+
+    // 1010 Needle Bullet: auto-targets the nearest living enemy and fires the
+    // workbook tiers. Lv4 adds a missile on a cadence; Lv5 adds a drug-stream beam.
+    public void UpdateNeedleBullet()
+    {
+        int level = GetVesselSkillLevel(UpgradeType.NeedleBullet);
+        if (level <= 0) return;
+        needleBulletTimer -= Time.deltaTime;
+        if (needleBulletTimer > 0f) return;
+
+        RefreshTargets();
+        Enemy target = null;
+        float best = float.MaxValue;
+        for (int i = 0; i < targets.Count; i++)
+        {
+            Enemy enemy = targets[i];
+            if (enemy == null || enemy.currentHP <= 0 || enemy.deathPending) continue;
+            float distance = (enemy.transform.position - transform.position).sqrMagnitude;
+            if (distance < best) { best = distance; target = enemy; }
+        }
+        if (target == null)
+        {
+            needleBulletTimer = 0.15f;
+            return;
+        }
+
+        needleBulletTimer = NeedleInterval(level);
+        needleVolleyIndex++;
+        Vector2 aim = ((Vector2)(target.transform.position - transform.position)).normalized;
+        int fallbackCount = level >= 2 ? 2 : 1;
+        int count = Mathf.Max(1, GameBalance.GetInt("skill.needle.count_lv" + level, fallbackCount));
+        float spread = level >= 2 ? GameBalance.Get("skill.needle.spread", 5f) : 0f;
+        int maxTargets = level >= 3 ? GameBalance.GetInt("skill.needle.pierce", 2) : 1;
+        int damage = NeedleDamage(level);
+        float speed = NeedleSpeed(level);
+        float lifetime = GameBalance.Get("skill.needle.lifetime", 5f);
+        for (int i = 0; i < count; i++)
+        {
+            float angle = count <= 1 ? 0f : (i == 0 ? -spread : spread);
+            Vector2 direction = Quaternion.Euler(0f, 0f, angle) * aim;
+            weapon.SpawnBullet(direction, maxTargets, new Vector3(0.14f, 0.52f, 1f),
+                damage, speed, lifetime, "NeedleBullet");
+        }
+
+        // Lv4 missile: reuse the nurse projectile's D x 4 + 2 blast. It fires on a
+        // predictable cadence instead of every 0.35 s volley.
+        int missileEvery = Mathf.Max(1, GameBalance.GetInt("skill.needle.missile_every", 4));
+        if (level >= 4 && needleVolleyIndex % missileEvery == 0)
+            CharacterAttackEffect.Throw(this, target.transform.position, ProjectilePayload.Missile);
+
+        // Lv5 drug-stream beam: use the current attack damage, matching the
+        // existing nurse beam rather than the needle's 20-damage table row.
+        int beamEvery = Mathf.Max(1, GameBalance.GetInt("skill.needle.beam_every", 3));
+        if (level >= 5 && needleVolleyIndex % beamEvery == 0)
+        {
+            float length = Mathf.Clamp(speed, GameBalance.Get("skill.needle.beam_length_min", 7f),
+                GameBalance.Get("skill.needle.beam_length_max", 16f));
+            CharacterAttackEffect.Beam(this, transform.position, aim, length,
+                GameBalance.Get("skill.needle.beam_width", 0.85f),
+                Mathf.Max(1, weapon.bulletDamage),
+                GameBalance.Get("skill.needle.beam_duration", 0.22f));
+        }
+    }
+
+    public static int NeedleDamage(int level)
+    {
+        switch (Mathf.Clamp(level, 1, VesselSkillCatalog.StandardMaxLevel))
+        {
+            case 1: return GameBalance.GetInt("skill.needle.damage_lv1", 10);
+            case 2: return GameBalance.GetInt("skill.needle.damage_lv2", 10);
+            case 3: return GameBalance.GetInt("skill.needle.damage_lv3", 15);
+            case 4: return GameBalance.GetInt("skill.needle.damage_lv4", 20);
+            default: return GameBalance.GetInt("skill.needle.damage_lv5", 20);
+        }
+    }
+
+    public static float NeedleInterval(int level)
+    {
+        switch (Mathf.Clamp(level, 1, VesselSkillCatalog.StandardMaxLevel))
+        {
+            case 1: return GameBalance.Get("skill.needle.interval_lv1", 1f);
+            case 2: return GameBalance.Get("skill.needle.interval_lv2", 0.5f);
+            case 3: return GameBalance.Get("skill.needle.interval_lv3", 0.4f);
+            case 4: return GameBalance.Get("skill.needle.interval_lv4", 0.35f);
+            default: return GameBalance.Get("skill.needle.interval_lv5", 0.25f);
+        }
+    }
+
+    public static float NeedleSpeed(int level)
+    {
+        switch (Mathf.Clamp(level, 1, VesselSkillCatalog.StandardMaxLevel))
+        {
+            case 1: return GameBalance.Get("skill.needle.speed_lv1", 5f);
+            case 2: return GameBalance.Get("skill.needle.speed_lv2", 6f);
+            case 3: return GameBalance.Get("skill.needle.speed_lv3", 7f);
+            case 4: return GameBalance.Get("skill.needle.speed_lv4", 8f);
+            default: return GameBalance.Get("skill.needle.speed_lv5", 8f);
         }
     }
 
@@ -356,27 +607,94 @@ public class CharacterCombat : MonoBehaviour
             Vector3 viewport = camera == null ? Vector3.one * 0.5f : camera.WorldToViewportPoint(enemy.transform.position);
             if (viewport.z > 0f && viewport.x >= 0f && viewport.x <= 1f && viewport.y >= 0f && viewport.y <= 1f) visible.Add(enemy);
         }
-        int count = Mathf.Min(visible.Count, level + GameBalance.GetInt("skill.suture.count_base", 1));
+        int maxTargets = SutureHitCount(level);
+        int count = Mathf.Min(visible.Count, maxTargets);
+        int damage = SutureDamage(level);
         for (int i = 0; i < count; i++)
         {
             int swap = Random.Range(i, visible.Count); Enemy temp = visible[i]; visible[i] = visible[swap]; visible[swap] = temp;
-            visible[i].TakeDamage(Mathf.Max(1, weapon.bulletDamage));
-            if (GetVesselSkillLevel(UpgradeType.SidewallForceps) > 0) TrySidewallHeal();
+            visible[i].TakeDamage(damage);
+            if (GetVesselSkillLevel(UpgradeType.SidewallForceps) > 0 ||
+                GetVesselSkillLevel(UpgradeType.BloodRecycleForceps) > 0) TrySidewallHeal();
             CharacterAttackEffect.SutureLightning(this, visible[i].transform.position, level >= 3);
         }
     }
 
     public void TrySidewallHeal()
     {
+        // 203 replaces the base forceps effect entirely: a single 50% roll heals
+        // 8% of max HP and turns any overheal into a temporary shield.
+        int evolutionLevel = GetVesselSkillLevel(UpgradeType.BloodRecycleForceps);
+        if (evolutionLevel > 0)
+        {
+            if (stats != null && Random.value <= GameBalance.Get("skill.bloodforceps.chance", 0.5f))
+            {
+                float amount = stats.maxHP * GameBalance.Get("skill.bloodforceps.heal_percent", 0.08f);
+                stats.HealWithOverflowToShield(amount);
+                CharacterAttackEffect.SidewallHealPulse(this, transform.position, 1.05f, true);
+                UpdateSidewallAura();
+            }
+            return;
+        }
+
         int level = GetVesselSkillLevel(UpgradeType.SidewallForceps);
         if (level <= 0) return;
-        float chance = level >= 3 ? GameBalance.Get("skill.forceps.chance_lv3", 0.30f) :
-            (level == 2 ? GameBalance.Get("skill.forceps.chance_lv2", 0.20f) : GameBalance.Get("skill.forceps.chance_lv1", 0.15f));
+        float chance = ForcepsChance(level);
         if (Random.value <= chance && stats != null)
         {
             // True proportional heal: no rounding up, no minimum 1.
-            float amount = stats.maxHP * GameBalance.Get("skill.forceps.heal_percent", 0.05f);
+            float amount = stats.maxHP * ForcepsHealPercent(level);
             stats.Heal(amount);
+            CharacterAttackEffect.SidewallHealPulse(this, transform.position, 0.7f + 0.05f * level, false);
+            UpdateSidewallAura();
+        }
+    }
+
+    public static float ForcepsChance(int level)
+    {
+        switch (Mathf.Clamp(level, 1, VesselSkillCatalog.StandardMaxLevel))
+        {
+            case 1: return GameBalance.Get("skill.forceps.chance_lv1", 0.15f);
+            case 2: return GameBalance.Get("skill.forceps.chance_lv2", 0.20f);
+            case 3: return GameBalance.Get("skill.forceps.chance_lv3", 0.30f);
+            case 4: return GameBalance.Get("skill.forceps.chance_lv4", 0.40f);
+            default: return GameBalance.Get("skill.forceps.chance_lv5", 0.50f);
+        }
+    }
+
+    public static float ForcepsHealPercent(int level)
+    {
+        switch (Mathf.Clamp(level, 1, VesselSkillCatalog.StandardMaxLevel))
+        {
+            case 1: return GameBalance.Get("skill.forceps.heal_lv1", 0.05f);
+            case 2: return GameBalance.Get("skill.forceps.heal_lv2", 0.10f);
+            case 3: return GameBalance.Get("skill.forceps.heal_lv3", 0.15f);
+            case 4: return GameBalance.Get("skill.forceps.heal_lv4", 0.20f);
+            default: return GameBalance.Get("skill.forceps.heal_lv5", 0.30f);
+        }
+    }
+
+    public static int SutureHitCount(int level)
+    {
+        switch (Mathf.Clamp(level, 1, VesselSkillCatalog.StandardMaxLevel))
+        {
+            case 1: return GameBalance.GetInt("skill.suture.count_lv1", 1);
+            case 2: return GameBalance.GetInt("skill.suture.count_lv2", 2);
+            case 3: return GameBalance.GetInt("skill.suture.count_lv3", 2);
+            case 4: return GameBalance.GetInt("skill.suture.count_lv4", 3);
+            default: return GameBalance.GetInt("skill.suture.count_lv5", 3);
+        }
+    }
+
+    public static int SutureDamage(int level)
+    {
+        switch (Mathf.Clamp(level, 1, VesselSkillCatalog.StandardMaxLevel))
+        {
+            case 1: return GameBalance.GetInt("skill.suture.damage_lv1", 20);
+            case 2: return GameBalance.GetInt("skill.suture.damage_lv2", 20);
+            case 3: return GameBalance.GetInt("skill.suture.damage_lv3", 25);
+            case 4: return GameBalance.GetInt("skill.suture.damage_lv4", 25);
+            default: return GameBalance.GetInt("skill.suture.damage_lv5", 25);
         }
     }
 
@@ -384,10 +702,21 @@ public class CharacterCombat : MonoBehaviour
     {
         int level = GetVesselSkillLevel(UpgradeType.SpringCoil);
         if (level <= 0 || enemy == null) return;
-        enemy.ApplySlow(level >= 3 ? GameBalance.Get("skill.coil.slow_lv3", 0.70f) :
-            (level == 2 ? GameBalance.Get("skill.coil.slow_lv2", 0.80f) : GameBalance.Get("skill.coil.slow_lv1", 0.90f)),
+        enemy.ApplySlow(SpringCoilSlowMultiplier(level),
             GameBalance.Get("skill.coil.duration", 1.2f));
         CharacterAttackEffect.HitBlock(enemy.transform.position, level >= 3 ? 0.3f : 0.2f);
+    }
+
+    public static float SpringCoilSlowMultiplier(int level)
+    {
+        switch (Mathf.Clamp(level, 1, VesselSkillCatalog.StandardMaxLevel))
+        {
+            case 1: return GameBalance.Get("skill.coil.slow_lv1", 0.90f);
+            case 2: return GameBalance.Get("skill.coil.slow_lv2", 0.80f);
+            case 3: return GameBalance.Get("skill.coil.slow_lv3", 0.70f);
+            case 4: return GameBalance.Get("skill.coil.slow_lv4", 0.60f);
+            default: return GameBalance.Get("skill.coil.slow_lv5", 0.50f);
+        }
     }
 
     public void HandleEnemyDied(Enemy enemy)
@@ -398,7 +727,9 @@ public class CharacterCombat : MonoBehaviour
         hemostatPools.RemoveAll(pool => pool == null || pool.retired);
         while (hemostatPools.Count >= level) { hemostatPools[0].Retire(); hemostatPools.RemoveAt(0); }
         hemostatPools.Add(CharacterAttackEffect.Pool(this, enemy.transform.position,
-            GameBalance.Get("skill.clamp.radius_base", 1.25f) + level * GameBalance.Get("skill.clamp.radius_per_level", 0.25f),
+            GameBalance.Get("skill.clamp.radius_lv" + level,
+                GameBalance.Get("skill.clamp.radius_base", 1.5f) +
+                (level - 1) * GameBalance.Get("skill.clamp.radius_per_level", 0.25f)),
             GameBalance.Get("skill.clamp.duration", 1f),
             Mathf.Max(1, Mathf.FloorToInt(weapon.bulletDamage / GameBalance.Get("skill.clamp.damage_div", 2f))),
             GameBalance.Get("skill.clamp.tick", 0.25f)));
@@ -407,10 +738,14 @@ public class CharacterCombat : MonoBehaviour
     public void ThrowAblationBombs(int level)
     {
         RefreshTargets();
-        // Per-level counts are explicit: Lv1 throws two, Lv2 and Lv3 throw three.
+        // Workbook 1008: 2 / 3 / 3 / 3 / 3 bombs, damage 15 / 15 / 15 / 20 / 20.
         int bombCount = level <= 1 ? GameBalance.GetInt("skill.ablation.count_lv1", 2)
-            : (level == 2 ? GameBalance.GetInt("skill.ablation.count_lv2", 3) : GameBalance.GetInt("skill.ablation.count_lv3", 3));
+            : (level == 2 ? GameBalance.GetInt("skill.ablation.count_lv2", 3)
+            : (level == 3 ? GameBalance.GetInt("skill.ablation.count_lv3", 3)
+            : (level == 4 ? GameBalance.GetInt("skill.ablation.count_lv4", 3)
+            : GameBalance.GetInt("skill.ablation.count_lv5", 3))));
         float delay = level >= 3 ? GameBalance.Get("skill.ablation.delay_lv3", 0.5f) : GameBalance.Get("skill.ablation.delay_lv12", 1f);
+        int damage = AblationDamage(level);
         List<Enemy> candidates = new List<Enemy>();
         Camera camera = Camera.main;
         for (int i = 0; i < targets.Count; i++)
@@ -428,11 +763,11 @@ public class CharacterCombat : MonoBehaviour
         {
             Enemy target = candidates[Random.Range(0, candidates.Count)];
             if (target == null) continue;
-            StartCoroutine(ThrowDelayedBomb(target.transform.position, delay));
+            StartCoroutine(ThrowDelayedBomb(target.transform.position, delay, damage));
         }
     }
 
-    public System.Collections.IEnumerator ThrowDelayedBomb(Vector3 landing, float delay)
+    public System.Collections.IEnumerator ThrowDelayedBomb(Vector3 landing, float delay, int damage)
     {
         CharacterAttackEffect.Throw(this, landing, ProjectilePayload.AblationBomb);
         // Flight and fuse are counted separately and belong to the bomb: flight is
@@ -440,8 +775,19 @@ public class CharacterCombat : MonoBehaviour
         yield return new WaitForSeconds(GameBalance.Get("skill.ablation.extra_delay", 0.35f) + delay);
         if (GameManager.Instance != null && GameManager.Instance.gameEnded) yield break;
         CharacterAttackEffect.Burst(this, landing, GameBalance.Get("skill.ablation.blast_radius", 2.2f),
-            Mathf.Max(GameBalance.GetInt("skill.ablation.damage_min", 2),
-                weapon.bulletDamage + GameBalance.GetInt("skill.ablation.damage_add", 2)), true);
+            Mathf.Max(1, damage), true);
+    }
+
+    public static int AblationDamage(int level)
+    {
+        switch (Mathf.Clamp(level, 1, VesselSkillCatalog.StandardMaxLevel))
+        {
+            case 1: return GameBalance.GetInt("skill.ablation.damage_lv1", 15);
+            case 2: return GameBalance.GetInt("skill.ablation.damage_lv2", 15);
+            case 3: return GameBalance.GetInt("skill.ablation.damage_lv3", 15);
+            case 4: return GameBalance.GetInt("skill.ablation.damage_lv4", 20);
+            default: return GameBalance.GetInt("skill.ablation.damage_lv5", 20);
+        }
     }
 
     public IEnumerator SecondSlash(Vector2 aim)
@@ -458,7 +804,7 @@ public class CharacterCombat : MonoBehaviour
             (rank >= 3 ? GameBalance.Get("doctor.angle_r3", 115f) :
             (rank >= 1 ? GameBalance.Get("doctor.angle_r1", 95f) : GameBalance.Get("doctor.angle_r0", 80f)));
         CharacterAttackEffect.Sector(this, transform.position, aim, radius, angle,
-            Mathf.Max(1, weapon.bulletDamage + GameBalance.GetInt("doctor.bonus_damage", 1)), rank >= 5);
+            Mathf.Max(1, weapon.bulletDamage + GameBalance.GetInt("doctor.bonus_damage", 10)), rank >= 5);
     }
 
     public void FireNeedles(Vector2 aim)
@@ -499,7 +845,7 @@ public class CharacterCombat : MonoBehaviour
     public void AmpouleImpact(Vector3 position)
     {
         CharacterAttackEffect.Burst(this, position, GameBalance.Get("pharmacist.blast_radius", 2.5f),
-            Mathf.Max(1, weapon.bulletDamage + GameBalance.GetInt("pharmacist.blast_damage_add", 1)), rank >= 5);
+            Mathf.Max(1, weapon.bulletDamage + GameBalance.GetInt("pharmacist.blast_damage_add", 10)), rank >= 5);
         if (rank < 3) return;
         medicinePools.RemoveAll(pool => pool == null || pool.retired);
         while (medicinePools.Count >= Mathf.Max(1, GameBalance.GetInt("pharmacist.pool_max", 2)))
@@ -555,6 +901,7 @@ public class CharacterCombat : MonoBehaviour
         for (int i = 0; i < flushNeedles.Count; i++) if (flushNeedles[i] != null) Destroy(flushNeedles[i]);
         for (int i = 0; i < catheters.Count; i++) if (catheters[i] != null) Destroy(catheters[i]);
         if (membraneShield != null) Destroy(membraneShield);
+        if (sidewallAura != null) Destroy(sidewallAura);
     }
 }
 

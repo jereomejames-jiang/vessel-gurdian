@@ -4,7 +4,7 @@ using UnityEngine;
 
 public class Enemy : MonoBehaviour
 {
-    public int maxHP = 3;
+    public int maxHP = 30;
     public float moveSpeed = 2f;
     public int contactDamage = 20;
     public int xpValue = 1;

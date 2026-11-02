@@ -211,42 +211,27 @@ public class MainMenuUI : MonoBehaviour
             return;
         }
 
-        characterSelectPanel = new GameObject("CharacterSelectPanel", typeof(RectTransform), typeof(Image));
-        characterSelectPanel.transform.SetParent(canvas.transform, false);
-        RectTransform panel = characterSelectPanel.GetComponent<RectTransform>();
-        panel.anchorMin = Vector2.zero;
-        panel.anchorMax = Vector2.one;
-        panel.offsetMin = Vector2.zero;
-        panel.offsetMax = Vector2.zero;
-        characterSelectPanel.GetComponent<Image>().color = new Color(0.008f, 0.018f, 0.04f, 0.98f);
+        Image panel = MenuSkin.FullScreen(canvas.transform, "CharacterSelectPanel", MenuSkin.Scrim);
+        characterSelectPanel = panel.gameObject;
 
-        GameObject content = new GameObject("CharacterSelectContent", typeof(RectTransform), typeof(Image));
-        content.transform.SetParent(characterSelectPanel.transform, false);
-        RectTransform contentRect = content.GetComponent<RectTransform>();
-        contentRect.anchorMin = contentRect.anchorMax = Vector2.one * 0.5f;
-        contentRect.sizeDelta = new Vector2(1180f, 700f);
-        content.GetComponent<Image>().color = new Color(0.025f, 0.075f, 0.12f, 0.98f);
-
-        Text title = MakeText(content.transform, "CharacterSelectTitle", "选择角色", 36, TextAnchor.MiddleCenter,
-            new Vector2(0f, 282f), new Vector2(800f, 60f));
-        title.color = new Color(0.7f, 0.94f, 1f, 1f);
-        characterSelectDescription = MakeText(content.transform, "CharacterSelectDescription", "", 17, TextAnchor.UpperLeft,
-            new Vector2(0f, -185f), new Vector2(1060f, 210f));
-        characterSelectDescription.color = new Color(0.78f, 0.86f, 0.94f, 1f);
+        Image panelCard = MenuSkin.Card(panel.transform, "CharacterSelectCard", new Vector2(1180f, 700f), Vector2.zero);
+        MenuSkin.Label(panelCard.transform, "CharacterSelectTitle", "选择角色", 44, MenuSkin.Ink,
+            TextAnchor.MiddleCenter, new Vector2(0f, 300f), new Vector2(800f, 60f));
+        characterSelectDescription = MenuSkin.Label(panelCard.transform, "CharacterSelectDescription", "", 17,
+            MenuSkin.Muted, TextAnchor.UpperLeft, new Vector2(0f, -140f), new Vector2(1080f, 190f));
 
         characterButtons = new Button[3];
         for (int i = 0; i < 3; i++)
         {
             int character = i;
-            characterButtons[i] = MakeButton(content.transform, "Character" + i + "Button",
-                CharacterCatalog.Names[i],
-                new Vector2(-390f + i * 390f, 58f), new Vector2(340f, 230f),
-                new Color(CharacterCatalog.Colors[i].r * 0.45f, CharacterCatalog.Colors[i].g * 0.45f,
-                    CharacterCatalog.Colors[i].b * 0.45f, 1f));
+            Color baseColor = CharacterCatalog.Colors[i];
+            characterButtons[i] = MenuSkin.Button(panelCard.transform, "Character" + i + "Button",
+                CharacterCatalog.Names[i], baseColor, Darken(baseColor, 0.5f), 20,
+                new Vector2(-380f + i * 380f, 80f), new Vector2(320f, 220f), 32, MenuSkin.White);
             characterButtons[i].onClick.AddListener(() => SelectCharacter(character));
         }
-        characterBackButton = MakeButton(content.transform, "CharacterBackButton", "返回主界面",
-            new Vector2(0f, -275f), new Vector2(250f, 58f), new Color(0.28f, 0.12f, 0.18f, 1f));
+        characterBackButton = MenuSkin.Button(panelCard.transform, "CharacterBackButton", "返回主界面",
+            MenuSkin.Grey, MenuSkin.GreyDepth, 16, new Vector2(0f, -310f), new Vector2(220f, 64f), 24, MenuSkin.Ink);
         characterBackButton.onClick.AddListener(CloseCharacterSelect);
         characterSelectPanel.SetActive(false);
         RefreshCharacterChoices();
@@ -260,13 +245,18 @@ public class MainMenuUI : MonoBehaviour
         for (int i = 0; i < characterButtons.Length; i++)
         {
             if (characterButtons[i] == null) continue;
-            Image image = characterButtons[i].GetComponent<Image>();
             bool chosen = i == selectedCharacter;
             Color baseColor = CharacterCatalog.Colors[i];
-            if (image != null) image.color = chosen
-                ? new Color(baseColor.r * 0.75f, baseColor.g * 0.75f, baseColor.b * 0.75f, 1f)
-                : new Color(baseColor.r * 0.35f, baseColor.g * 0.35f, baseColor.b * 0.35f, 1f);
+            MenuSkin.Recolor(characterButtons[i],
+                chosen ? baseColor : Color.Lerp(baseColor, MenuSkin.White, 0.62f),
+                chosen ? Darken(baseColor, 0.5f) : Color.Lerp(baseColor, MenuSkin.White, 0.35f),
+                chosen ? MenuSkin.White : MenuSkin.Ink);
         }
+    }
+
+    static Color Darken(Color c, float amount)
+    {
+        return Color.Lerp(c, Color.black, amount);
     }
 
     public string BuildCharacterRouteSummary(CharacterRole role)
@@ -315,43 +305,28 @@ public class MainMenuUI : MonoBehaviour
             return;
         }
 
-        levelSelectPanel = new GameObject("LevelSelectPanel", typeof(RectTransform), typeof(Image));
-        levelSelectPanel.transform.SetParent(canvas.transform, false);
-        RectTransform panelRect = levelSelectPanel.GetComponent<RectTransform>();
-        panelRect.anchorMin = Vector2.zero;
-        panelRect.anchorMax = Vector2.one;
-        panelRect.offsetMin = Vector2.zero;
-        panelRect.offsetMax = Vector2.zero;
-        levelSelectPanel.GetComponent<Image>().color = new Color(0.008f, 0.018f, 0.04f, 0.97f);
+        Image panel = MenuSkin.FullScreen(canvas.transform, "LevelSelectPanel", MenuSkin.Scrim);
+        levelSelectPanel = panel.gameObject;
 
-        GameObject content = new GameObject("LevelSelectContent", typeof(RectTransform), typeof(Image));
-        content.transform.SetParent(levelSelectPanel.transform, false);
-        RectTransform contentRect = content.GetComponent<RectTransform>();
-        contentRect.anchorMin = contentRect.anchorMax = Vector2.one * 0.5f;
-        contentRect.sizeDelta = new Vector2(1080f, 620f);
-        contentRect.anchoredPosition = Vector2.zero;
-        content.GetComponent<Image>().color = new Color(0.025f, 0.075f, 0.12f, 0.98f);
-
-        Text title = MakeText(content.transform, "LevelSelectTitle", "选择关卡", 34, TextAnchor.MiddleCenter,
-            new Vector2(0f, 245f), new Vector2(800f, 56f));
-        title.color = new Color(0.7f, 0.94f, 1f, 1f);
-        levelSelectDescription = MakeText(content.transform, "LevelSelectDescription", "", 22, TextAnchor.MiddleCenter,
-            new Vector2(0f, -105f), new Vector2(900f, 100f));
-        levelSelectDescription.color = new Color(0.78f, 0.86f, 0.94f, 1f);
+        Image panelCard = MenuSkin.Card(panel.transform, "LevelSelectCard", new Vector2(1000f, 640f), Vector2.zero);
+        MenuSkin.Label(panelCard.transform, "LevelSelectTitle", "选择关卡", 44, MenuSkin.Ink,
+            TextAnchor.MiddleCenter, new Vector2(0f, 250f), new Vector2(800f, 60f));
+        levelSelectDescription = MenuSkin.Label(panelCard.transform, "LevelSelectDescription", "", 22,
+            MenuSkin.Muted, TextAnchor.MiddleCenter, new Vector2(0f, -110f), new Vector2(880f, 90f));
 
         levelButtons = new Button[3];
         string[] captions = { "第一关\n血管起点", "第二关\n斑块挑战", "第三关\n健康冲刺" };
         for (int i = 0; i < levelButtons.Length; i++)
         {
             int level = i + 1;
-            levelButtons[i] = MakeButton(content.transform, "Level" + level + "Button", captions[i],
-                new Vector2(-340f + i * 340f, 80f), new Vector2(290f, 130f),
-                new Color(0.12f, 0.22f, 0.32f, 1f));
+            levelButtons[i] = MenuSkin.Button(panelCard.transform, "Level" + level + "Button", captions[i],
+                MenuSkin.Blue, MenuSkin.BlueDepth, 20, new Vector2(-320f + i * 320f, 60f),
+                new Vector2(280f, 150f), 26, MenuSkin.White);
             levelButtons[i].onClick.AddListener(() => SelectLevel(level));
         }
 
-        levelBackButton = MakeButton(content.transform, "LevelBackButton", "返回主界面",
-            new Vector2(0f, -220f), new Vector2(250f, 58f), new Color(0.28f, 0.12f, 0.18f, 1f));
+        levelBackButton = MenuSkin.Button(panelCard.transform, "LevelBackButton", "返回主界面",
+            MenuSkin.Grey, MenuSkin.GreyDepth, 16, new Vector2(0f, -250f), new Vector2(220f, 64f), 24, MenuSkin.Ink);
         levelBackButton.onClick.AddListener(CloseLevelSelect);
         levelSelectPanel.SetActive(false);
         RefreshLevelChoices();
@@ -360,21 +335,21 @@ public class MainMenuUI : MonoBehaviour
     public void RefreshLevelChoices()
     {
         if (levelButtons == null) return;
-        string[] descriptions =
+        string[] levelDescriptions =
         {
             "标准节奏：熟悉移动、自动攻击和血管图鉴。",
             "压力提升：敌人出现更频繁，适合进阶挑战。",
             "健康冲刺：最高强度，检验你的守护策略。"
         };
-        if (levelSelectDescription != null) levelSelectDescription.text = descriptions[selectedLevel - 1];
+        if (levelSelectDescription != null) levelSelectDescription.text = levelDescriptions[selectedLevel - 1];
         for (int i = 0; i < levelButtons.Length; i++)
         {
             if (levelButtons[i] == null) continue;
-            Image image = levelButtons[i].GetComponent<Image>();
             bool chosen = i + 1 == selectedLevel;
-            if (image != null) image.color = chosen
-                ? new Color(0.12f, 0.58f, 0.72f, 1f)
-                : new Color(0.12f, 0.22f, 0.32f, 1f);
+            MenuSkin.Recolor(levelButtons[i],
+                chosen ? MenuSkin.Blue : MenuSkin.CardIdle,
+                chosen ? MenuSkin.BlueDepth : MenuSkin.CardIdleDepth,
+                chosen ? MenuSkin.White : MenuSkin.Ink);
         }
     }
 

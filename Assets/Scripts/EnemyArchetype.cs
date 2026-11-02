@@ -59,7 +59,7 @@ public class EnemyArchetype : MonoBehaviour
     {
         if (enemy == null) return;
         string prefix = "enemy." + ConfigKey() + ".";
-        int baseHP = 1, hpPerStage = 0, damage = 20, xp = 2;
+        int baseHP = 10, hpPerStage = 0, damage = 20, xp = 2;
         float baseSpeed = 2.8f, speedPerStage = 0.2f;
         switch (kind)
         {
@@ -67,28 +67,28 @@ public class EnemyArchetype : MonoBehaviour
                 transform.localScale = Vector3.one * 0.62f;
                 break;
             case EnemyKind.SpikeSoldier:
-                baseHP = 3; hpPerStage = 1; baseSpeed = 1.65f; speedPerStage = 0.18f; damage = 40; xp = 3;
+                baseHP = 30; hpPerStage = 10; baseSpeed = 1.65f; speedPerStage = 0.18f; damage = 40; xp = 3;
                 enemy.knockbackResistance = GameBalance.Get(prefix + "knockback_resist", 0.9f);
                 transform.localScale = Vector3.one * 0.9f;
                 break;
             case EnemyKind.RupturedCell:
-                baseHP = 4; hpPerStage = 2; baseSpeed = 1.1f; speedPerStage = 0.1f; damage = 40; xp = 5;
+                baseHP = 40; hpPerStage = 20; baseSpeed = 1.1f; speedPerStage = 0.1f; damage = 40; xp = 5;
                 enemy.deathDelay = GameBalance.Get(prefix + "death_delay", 0.45f);
                 ruptureExplosionRadius = GameBalance.Get(prefix + "blast_radius", ruptureExplosionRadius);
                 ruptureExplosionDamageMultiplier = GameBalance.GetInt(prefix + "blast_damage_mult", ruptureExplosionDamageMultiplier);
                 transform.localScale = Vector3.one * 1.05f;
                 break;
             case EnemyKind.MicroThrombus:
-                baseHP = 8; hpPerStage = 3; baseSpeed = 0.65f; speedPerStage = 0.08f; damage = 40; xp = 6;
+                baseHP = 80; hpPerStage = 30; baseSpeed = 0.65f; speedPerStage = 0.08f; damage = 40; xp = 6;
                 transform.localScale = new Vector3(2.3f, 0.9f, 1f);
                 break;
             case EnemyKind.BleedingGap:
-                baseHP = 12; hpPerStage = 3; baseSpeed = 0f; speedPerStage = 0f; damage = 20; xp = 5;
+                baseHP = 120; hpPerStage = 30; baseSpeed = 0f; speedPerStage = 0f; damage = 20; xp = 5;
                 bleedingGapRadius = GameBalance.Get(prefix + "zone_radius", bleedingGapRadius);
                 transform.localScale = Vector3.one * 1.25f;
                 break;
             case EnemyKind.NodeBoss:
-                baseHP = 34; hpPerStage = 12; baseSpeed = 0.7f; speedPerStage = 0.08f; damage = 60; xp = 20;
+                baseHP = 340; hpPerStage = 120; baseSpeed = 0.7f; speedPerStage = 0.08f; damage = 60; xp = 20;
                 transform.localScale = Vector3.one * 2.2f;
                 break;
         }
