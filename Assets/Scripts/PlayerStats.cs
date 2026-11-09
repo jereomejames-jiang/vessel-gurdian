@@ -22,6 +22,7 @@ public class PlayerStats : MonoBehaviour
     float membraneRegenTimer;
 
     public event Action<int, int> OnHPChanged;
+    public event Action<int> OnDamaged;
     public event Action<int, int, int> OnXPChanged;
     public event Action<int> OnLevelUp;
     public event Action OnDeath;
@@ -93,9 +94,15 @@ public class PlayerStats : MonoBehaviour
         OnXPChanged?.Invoke(currentXP, needed, level);
     }
 
+    public float invulnerableUntil;
+
     public void TakeDamage(int amount)
     {
         if (invincible || amount <= 0 || currentHP <= 0 || Time.timeScale <= 0f) return;
+        // Short i-frames: without them a crowd drains all 5 HP in under a second,
+        // which reads as unfair rather than difficult.
+        if (Time.time < invulnerableUntil) return;
+        invulnerableUntil = Time.time + GameBalance.Get("player.iframes", 0.7f);
 
         lastDamageTime = Time.time;
         membraneRegenTimer = 0f;
@@ -109,6 +116,7 @@ public class PlayerStats : MonoBehaviour
         }
         currentHP = Mathf.Max(0, currentHP - reduced);
         OnHPChanged?.Invoke(currentHP, maxHP);
+        OnDamaged?.Invoke(reduced);
 
         if (currentHP == 0)
         {

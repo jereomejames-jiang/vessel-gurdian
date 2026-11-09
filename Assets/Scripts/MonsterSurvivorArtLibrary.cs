@@ -23,6 +23,8 @@ public static class MonsterSurvivorArtLibrary
         if (frameCache.TryGetValue(assetName, out cached) && cached != null &&
             cached.Length == 4 && Array.TrueForAll(cached, sprite => sprite != null))
             return cached;
+        Sprite[] sheet = LoadSheetFromResources(assetName);
+        if (sheet != null) { frameCache[assetName] = sheet; return sheet; }
         cached = new Sprite[4];
         for (int i = 0; i < cached.Length; i++) cached[i] = MakeSprite(assetName + "_frame_" + i, assetName, i);
         frameCache[assetName] = cached;
@@ -44,6 +46,46 @@ public static class MonsterSurvivorArtLibrary
         Sprite[] frames = LoadFrames(assetName);
         return frames == null || frames.Length == 0 ? null : frames[0];
     }
+
+    // Real imported sprite sheets (4 horizontal frames) take priority over the
+    // procedural fallback so hand-made art can replace generated placeholders.
+    static Sprite[] LoadSheetFromResources(string assetName)
+    {
+        Texture2D tex = Resources.Load<Texture2D>(assetName);
+        if (tex == null && assetName == "enemy_cell_shadow") tex = DecodeEmbeddedCellShadow();
+        if (tex == null) return null;
+        const int frames = 4;
+        if (tex.width % frames != 0) return null;
+        int fw = tex.width / frames;
+        int fh = tex.height;
+        if (fw <= 0 || fh <= 0) return null;
+        float ppu = Mathf.Max(1f, fh * 1.5f);
+        Sprite[] result = new Sprite[frames];
+        for (int i = 0; i < frames; i++)
+        {
+            result[i] = Sprite.Create(tex, new Rect(i * fw, 0, fw, fh), new Vector2(0.5f, 0.5f), ppu);
+            result[i].name = assetName + "_frame_" + i;
+        }
+        return result;
+    }
+
+    static Texture2D embeddedCellShadow;
+
+    // The sheet is also embedded so the art shows even before Unity imports the
+    // Resources PNG (asset import is suppressed while the Editor is in Play Mode).
+    static Texture2D DecodeEmbeddedCellShadow()
+    {
+        if (embeddedCellShadow != null) return embeddedCellShadow;
+        Texture2D tex = new Texture2D(2, 2, TextureFormat.RGBA32, false);
+        tex.name = "enemy_cell_shadow";
+        if (!tex.LoadImage(System.Convert.FromBase64String(CellShadowSheetBase64))) return null;
+        tex.filterMode = FilterMode.Point;
+        tex.wrapMode = TextureWrapMode.Clamp;
+        embeddedCellShadow = tex;
+        return tex;
+    }
+
+    const string CellShadowSheetBase64 = "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";
 
     public static Sprite SkillIcon(UpgradeType type)
     {
@@ -79,7 +121,7 @@ public static class MonsterSurvivorArtLibrary
     {
         switch (kind)
         {
-            case EnemyKind.CellShadow: return "enemy_slime";
+            case EnemyKind.CellShadow: return "enemy_cell_shadow";
             case EnemyKind.SpikeSoldier: return "enemy_bat";
             case EnemyKind.RupturedCell: return "enemy_pumpkin";
             case EnemyKind.MicroThrombus: return "enemy_eye";
@@ -174,13 +216,87 @@ public static class MonsterSurvivorArtLibrary
         image.sprite = LoadSingle("ui_panel_" + styleKey); image.type = Image.Type.Sliced; image.color = color;
     }
 
+    // 升级卡的细发光边框：2px 亮线 + 3px 内衰减，四角保留圆角，中间由 9-slice 拉伸。
+    // 只在贴边几个像素里有不透明内容，因此整张卡靠它提轮廓，而不是靠一大块底色。
+    public static Sprite CardFrame()
+    {
+        Sprite cached;
+        if (singleCache.TryGetValue("card_frame", out cached) && cached != null) return cached;
+        const int size = 128;
+        // 与 DrawRoundedPanel 的 s/7 圆角一致，发光线才能压在玻璃底色的那圈暗边上。
+        const float radius = 18f;
+        Texture2D texture = new Texture2D(size, size, TextureFormat.RGBA32, false);
+        texture.name = "OriginalSurvivorArt_card_frame";
+        texture.filterMode = FilterMode.Bilinear;
+        texture.wrapMode = TextureWrapMode.Clamp;
+        texture.SetPixels(new Color[size * size]);
+        for (int y = 0; y < size; y++)
+        {
+            for (int x = 0; x < size; x++)
+            {
+                float edge = RoundedRectEdge(x, y, size, radius);
+                if (edge < 0f) continue;
+                if (edge < 2f) texture.SetPixel(x, y, new Color(1f, 1f, 1f, 0.85f));
+                else if (edge < 6f) texture.SetPixel(x, y, new Color(1f, 1f, 1f, Mathf.Lerp(0.42f, 0.05f, (edge - 2f) / 4f)));
+            }
+        }
+        texture.Apply();
+        cached = Sprite.Create(texture, new Rect(0f, 0f, size, size), new Vector2(0.5f, 0.5f), size, 0,
+            SpriteMeshType.FullRect, new Vector4(26f, 26f, 26f, 26f));
+        cached.name = "OriginalSurvivorArt_card_frame";
+        singleCache["card_frame"] = cached;
+        return cached;
+    }
+
+    // 图标背后的柔光：中心到边缘的平方衰减，配合低 alpha 当"发光底"，替代硬色块底框。
+    public static Sprite GlowRadial()
+    {
+        Sprite cached;
+        if (singleCache.TryGetValue("glow_radial", out cached) && cached != null) return cached;
+        const int size = 128;
+        Texture2D texture = new Texture2D(size, size, TextureFormat.RGBA32, false);
+        texture.name = "OriginalSurvivorArt_glow_radial";
+        texture.filterMode = FilterMode.Bilinear;
+        texture.wrapMode = TextureWrapMode.Clamp;
+        texture.SetPixels(new Color[size * size]);
+        float center = size * 0.5f;
+        for (int y = 0; y < size; y++)
+        {
+            for (int x = 0; x < size; x++)
+            {
+                float dx = (x - center) / center;
+                float dy = (y - center) / center;
+                float falloff = Mathf.Clamp01(1f - Mathf.Sqrt(dx * dx + dy * dy));
+                falloff *= falloff;
+                if (falloff <= 0.001f) continue;
+                texture.SetPixel(x, y, new Color(1f, 1f, 1f, falloff));
+            }
+        }
+        texture.Apply();
+        cached = Sprite.Create(texture, new Rect(0f, 0f, size, size), new Vector2(0.5f, 0.5f), size);
+        cached.name = "OriginalSurvivorArt_glow_radial";
+        singleCache["glow_radial"] = cached;
+        return cached;
+    }
+
+    // 圆角矩形内的到边距离：0 表示正好在轮廓上，负数表示在轮廓之外。
+    static float RoundedRectEdge(float x, float y, float size, float radius)
+    {
+        float qx = Mathf.Max(radius - x, x - (size - 1f - radius), 0f);
+        float qy = Mathf.Max(radius - y, y - (size - 1f - radius), 0f);
+        return radius - Mathf.Sqrt(qx * qx + qy * qy);
+    }
+
     static Sprite MakeSprite(string key, string styleKey, int frame)
     {
         int size = styleKey.StartsWith("ui_") ? 128 : 96;
         Texture2D texture = new Texture2D(size, size, TextureFormat.RGBA32, false);
         texture.name = "OriginalSurvivorArt_" + key; texture.filterMode = FilterMode.Bilinear; texture.wrapMode = TextureWrapMode.Clamp;
         texture.SetPixels(new Color[size * size]); DrawStyle(texture, styleKey, frame); texture.Apply();
-        Sprite sprite = Sprite.Create(texture, new Rect(0f, 0f, size, size), new Vector2(0.5f, 0.5f), size);
+        // 面板/进度条使用 9-slice：把圆角与描边锁在四角与四边，中间纯色区拉伸，避免圆角被拉扁。
+        Vector4 border = (styleKey.StartsWith("ui_panel") || styleKey.StartsWith("ui_progress"))
+            ? new Vector4(size * 0.20f, size * 0.20f, size * 0.20f, size * 0.20f) : Vector4.zero;
+        Sprite sprite = Sprite.Create(texture, new Rect(0f, 0f, size, size), new Vector2(0.5f, 0.5f), size, 0, SpriteMeshType.FullRect, border);
         sprite.name = "OriginalSurvivorArt_" + key; return sprite;
     }
 
@@ -349,8 +465,28 @@ public static class MonsterSurvivorArtLibrary
 
     static void DrawRoundedPanel(Texture2D t, Color border)
     {
-        int s = t.width; int radius = 10;
-        for (int y = 0; y < s; y++) for (int x = 0; x < s; x++) { int dx = Mathf.Max(radius - x, 0, x - (s - radius - 1)); int dy = Mathf.Max(radius - y, 0, y - (s - radius - 1)); if (dx * dx + dy * dy <= radius * radius) t.SetPixel(x, y, (x < 4 || x >= s - 4 || y < 4 || y >= s - 4) ? border : Color.white); }
+        int s = t.width;
+        int radius = Mathf.Max(14, s / 7);
+        for (int y = 0; y < s; y++)
+        {
+            for (int x = 0; x < s; x++)
+            {
+                int dx = Mathf.Max(radius - x, 0, x - (s - radius - 1));
+                int dy = Mathf.Max(radius - y, 0, y - (s - radius - 1));
+                if (dx * dx + dy * dy > radius * radius) continue; // 圆角之外保持透明
+                // 深色内描边：贴边 3px，给面板一圈收口，避免"一块纯色漂浮"。
+                bool onEdge = dx > radius - 3 || dy > radius - 3 || x < 3 || y < 3 || x >= s - 3 || y >= s - 3;
+                if (onEdge)
+                {
+                    t.SetPixel(x, y, new Color(border.r * 0.30f, border.g * 0.30f, border.b * 0.30f, 1f));
+                    continue;
+                }
+                // 竖向受光渐变：上亮下暗，让面板有轻微立体感而非均匀死色。
+                float v = (float)y / (s - 1);
+                float shade = Mathf.Lerp(0.80f, 1.04f, v);
+                t.SetPixel(x, y, new Color(shade, shade, shade, 1f));
+            }
+        }
     }
 
     static void DrawLightning(Texture2D t, Color color)

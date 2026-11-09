@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 
 public class Enemy : MonoBehaviour
@@ -58,6 +59,39 @@ public class Enemy : MonoBehaviour
         spriteRenderer = GetComponent<SpriteRenderer>();
     }
 
+    // Enemies steer straight at the player and use trigger colliders, so without
+    // a separation force they pile into a single overlapping blob.
+    static readonly List<Enemy> alive = new List<Enemy>();
+    const float SeparationRadius = 0.55f;
+    const float SeparationStrength = 1.6f;
+
+    void OnEnable() { alive.Add(this); }
+    void OnDisable() { alive.Remove(this); }
+
+    Vector2 ComputeSeparation()
+    {
+        Vector2 pos = rb != null ? rb.position : (Vector2)transform.position;
+        Vector2 push = Vector2.zero;
+        for (int i = 0; i < alive.Count; i++)
+        {
+            Enemy other = alive[i];
+            if (other == this || other == null || other.currentHP <= 0) continue;
+            Vector2 otherPos = other.rb != null ? other.rb.position : (Vector2)other.transform.position;
+            Vector2 delta = pos - otherPos;
+            float dist = delta.magnitude;
+            if (dist >= SeparationRadius) continue;
+            if (dist < 0.0001f)
+            {
+                delta = UnityEngine.Random.insideUnitCircle;
+                dist = delta.magnitude;
+                if (dist < 0.0001f) continue;
+            }
+            push += delta / dist * (1f - dist / SeparationRadius);
+        }
+        if (push.sqrMagnitude > 1f) push.Normalize();
+        return push * SeparationStrength;
+    }
+
     void Start()
     {
         PlayerController controller = FindAnyObjectByType<PlayerController>();
@@ -76,7 +110,9 @@ public class Enemy : MonoBehaviour
         if (player == null) return;
 
         Vector3 direction = (player.position - transform.position).normalized;
-        if (rb != null) rb.MovePosition(rb.position + (Vector2)direction * EffectiveMoveSpeed * Time.fixedDeltaTime);
+        Vector2 velocity = (Vector2)direction * EffectiveMoveSpeed + ComputeSeparation();
+        if (rb != null) rb.MovePosition(rb.position + velocity * Time.fixedDeltaTime);
+        else transform.position += (Vector3)(velocity * Time.fixedDeltaTime);
     }
 
     void Update()

@@ -69,8 +69,8 @@ public class UIManager : MonoBehaviour
         EnsureSurvivorHud();
         EnsurePauseView();
         EnsureTestTools();
-        ApplyProgressSkin(XPSlider, new Color(0.28f, 0.72f, 0.92f, 1f));
-        ApplyProgressSkin(HPSlider, new Color(0.92f, 0.32f, 0.42f, 1f));
+        ApplyProgressSkin(XPSlider, new Color(0.40f, 0.64f, 0.68f, 1f));
+        ApplyProgressSkin(HPSlider, new Color(0.70f, 0.34f, 0.38f, 1f));
 
         choiceButtons = new Button[3];
         choiceButtons[0] = FindChild<Button>(canvas.transform, "Choice1");
@@ -236,35 +236,129 @@ public class UIManager : MonoBehaviour
             }
 
             UpgradeOption option = choices[i];
-            EnsureCardTexts(button, out Text cardTitle, out Text cardLevel, out Text cardDesc);
+            Color accent = option.skillCard == null ? new Color(0.34f, 0.56f, 0.62f, 1f) : option.skillCard.cardColor;
+            EnsureCardTexts(button, accent, out Text cardTitle, out Text cardLevel, out Text cardDesc);
             cardTitle.text = option.displayName;
             cardLevel.text = CardLevelLine(option);
             cardDesc.text = CardShortText(option);
-            cardTitle.transform.SetAsLastSibling();
-            cardLevel.transform.SetAsLastSibling();
-            cardDesc.transform.SetAsLastSibling();
-            Image cardImage = button.GetComponent<Image>();
-            if (cardImage != null)
+            AttachOptionIcon(button, MonsterSurvivorArtLibrary.SkillIcon(option.type), accent);
+            StyleCard(button, accent);
+            OrderCardChildren(button);
+        }
+    }
+
+    // 半透明科幻风奖励卡：深色玻璃底 + 沿边细发光框 + 顶部强调条 + 标题分隔线。
+    // 强调色只出现在几像素的线与柔光里，不再整块高饱和，卡片才能透出暗背景。
+    public void StyleCard(Button button, Color accent)
+    {
+        Image body = button.GetComponent<Image>();
+        if (body != null)
+        {
+            MonsterSurvivorArtLibrary.ApplySliced(body, "ui_button_blue",
+                Color.Lerp(new Color(0.03f, 0.06f, 0.10f, 0.82f), accent, 0.07f));
+            body.raycastTarget = true;
+        }
+
+        Color soft = Color.Lerp(accent, Color.white, 0.35f);
+        Image frame = EnsureImageChild(button.transform, "CardFrame");
+        frame.sprite = MonsterSurvivorArtLibrary.CardFrame();
+        frame.type = Image.Type.Sliced;
+        frame.color = new Color(soft.r, soft.g, soft.b, 0.92f);
+        frame.raycastTarget = false;
+        StretchToParent(frame.rectTransform);
+
+        Image topBar = EnsureImageChild(button.transform, "CardTopBar");
+        Image divider = EnsureImageChild(button.transform, "CardDivider");
+        SetBar(topBar, new Color(soft.r, soft.g, soft.b, 0.78f), new Vector2(212f, 3f), -20f);
+        SetBar(divider, new Color(soft.r, soft.g, soft.b, 0.30f), new Vector2(168f, 2f), -266f);
+
+        // 悬停反馈走独立覆盖层：Button 的 ColorTint 会把 targetGraphic 的颜色写回
+        // normalColor，若直接指向卡体会抹掉上面的玻璃底色，所以另起一张同名圆角面板。
+        Image hover = EnsureImageChild(button.transform, "CardHover");
+        hover.sprite = MonsterSurvivorArtLibrary.LoadSingle("ui_panel_ui_button_blue");
+        hover.type = Image.Type.Sliced;
+        hover.raycastTarget = false;
+        StretchToParent(hover.rectTransform);
+        // 先改走 ColorTint 与 targetGraphic，再写 colors：给 colors 赋值会立刻调用
+        // UpdateColors，此时若 targetGraphic 还指向卡体，玻璃底色会被 normalColor 抹掉。
+        button.transition = Selectable.Transition.ColorTint;
+        button.targetGraphic = hover;
+        ColorBlock colors = button.colors;
+        colors.normalColor = new Color(soft.r, soft.g, soft.b, 0f);
+        colors.highlightedColor = new Color(soft.r, soft.g, soft.b, 0.15f);
+        colors.pressedColor = new Color(soft.r, soft.g, soft.b, 0.24f);
+        colors.selectedColor = colors.normalColor;
+        button.colors = colors;
+    }
+
+    public void StretchToParent(RectTransform rect)
+    {
+        rect.anchorMin = Vector2.zero;
+        rect.anchorMax = Vector2.one;
+        rect.pivot = new Vector2(0.5f, 0.5f);
+        rect.sizeDelta = Vector2.zero;
+        rect.anchoredPosition = Vector2.zero;
+    }
+
+    // 不带 sprite 的 Image 就是一块矩形，适合做强调条与分隔线。
+    public void SetBar(Image bar, Color color, Vector2 size, float topOffset)
+    {
+        bar.sprite = null;
+        bar.type = Image.Type.Simple;
+        bar.color = color;
+        bar.raycastTarget = false;
+        RectTransform rect = bar.rectTransform;
+        rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 1f);
+        rect.pivot = new Vector2(0.5f, 0.5f);
+        rect.sizeDelta = size;
+        rect.anchoredPosition = new Vector2(0f, topOffset);
+    }
+
+    public Image EnsureImageChild(Transform parent, string name)
+    {
+        Transform existing = parent.Find(name);
+        if (existing != null)
+        {
+            Image existingImage = existing.GetComponent<Image>();
+            if (existingImage != null)
             {
-                Color accent = option.skillCard == null ? new Color(0.22f, 0.48f, 0.62f, 1f) : option.skillCard.cardColor;
-                // Darker, more transparent background so icons show through.
-                MonsterSurvivorArtLibrary.ApplySliced(cardImage, "ui_button_blue",
-                    Color.Lerp(new Color(0.02f, 0.05f, 0.09f, 0.92f), accent, 0.25f));
+                existing.gameObject.SetActive(true);
+                return existingImage;
             }
-            AttachOptionIcon(button, MonsterSurvivorArtLibrary.SkillIcon(option.type));
+            existing.gameObject.SetActive(true);
+            return existing.gameObject.AddComponent<Image>();
+        }
+        GameObject created = new GameObject(name, typeof(RectTransform), typeof(Image));
+        created.transform.SetParent(parent, false);
+        return created.GetComponent<Image>();
+    }
+
+    public static readonly string[] cardChildOrder =
+    {
+        "CardFrame", "IconGlow", "MonsterSurvivorIcon", "CardTopBar", "CardDivider",
+        "CardTitle", "CardLevel", "CardDesc", "CardHover"
+    };
+
+    public void OrderCardChildren(Button button)
+    {
+        for (int i = 0; i < cardChildOrder.Length; i++)
+        {
+            Transform child = button.transform.Find(cardChildOrder[i]);
+            if (child != null) child.SetSiblingIndex(i);
         }
     }
 
     // Unicode 模式字体不支持 <size>/<b> 富文本覆盖，标题/等级/描述必须用独立 Text
-    public void EnsureCardTexts(Button button, out Text title, out Text level, out Text desc)
+    public void EnsureCardTexts(Button button, Color accent, out Text title, out Text level, out Text desc)
     {
         // 场景自带的旧 Label 状态不可信，停用后统一走运行时创建路径
         foreach (Transform child in button.transform)
             if (child.name == "Label") child.gameObject.SetActive(false);
 
-        title = EnsureCardText(button, "CardTitle", 24, Color.white, TextAnchor.MiddleCenter, new Vector2(0f, -210f), new Vector2(272f, 40f));
-        level = EnsureCardText(button, "CardLevel", 18, new Color(0.49f, 0.78f, 0.91f, 1f), TextAnchor.MiddleCenter, new Vector2(0f, -252f), new Vector2(272f, 30f));
-        desc = EnsureCardText(button, "CardDesc", 17, new Color(0.85f, 0.91f, 0.96f, 1f), TextAnchor.UpperCenter, new Vector2(0f, -316f), new Vector2(272f, 84f));
+        Color soft = Color.Lerp(Color.Lerp(accent, Color.white, 0.35f), Color.white, 0.15f);
+        title = EnsureCardText(button, "CardTitle", 25, new Color(0.95f, 0.97f, 1f, 1f), TextAnchor.MiddleCenter, new Vector2(0f, -224f), new Vector2(256f, 38f));
+        level = EnsureCardText(button, "CardLevel", 15, new Color(soft.r, soft.g, soft.b, 0.92f), TextAnchor.MiddleCenter, new Vector2(0f, -294f), new Vector2(256f, 24f));
+        desc = EnsureCardText(button, "CardDesc", 16, new Color(0.78f, 0.84f, 0.90f, 1f), TextAnchor.UpperCenter, new Vector2(0f, -376f), new Vector2(232f, 112f));
     }
 
     public Text EnsureCardText(Button button, string name, int fontSize, Color color, TextAnchor alignment, Vector2 topCenteredPosition, Vector2 size)
@@ -313,48 +407,45 @@ public class UIManager : MonoBehaviour
         return string.IsNullOrEmpty(shortText) ? "战斗强化" : shortText;
     }
 
-    public void AttachOptionIcon(Button button, Sprite sprite)
+    public void AttachOptionIcon(Button button, Sprite sprite, Color accent)
     {
         if (button == null) return;
         Transform existing = button.transform.Find("MonsterSurvivorIcon");
-        Transform existingBacking = button.transform.Find("IconBacking");
-        // Fallback: if sprite is null, create a colored circle as placeholder.
-        if (sprite == null)
-        {
-            sprite = CreateFallbackIcon(button.GetComponent<Image>().color);
-        }
+        Transform staleBacking = button.transform.Find("IconBacking");
+        if (staleBacking != null) staleBacking.gameObject.SetActive(false);
+        if (sprite == null) sprite = CreateFallbackIcon(accent);
         if (sprite == null)
         {
             if (existing != null) existing.gameObject.SetActive(false);
-            if (existingBacking != null) existingBacking.gameObject.SetActive(false);
             return;
         }
-        GameObject backingObject = existingBacking == null ? new GameObject("IconBacking", typeof(RectTransform), typeof(Image)) : existingBacking.gameObject;
-        backingObject.transform.SetParent(button.transform, false);
-        Image backingImage = backingObject.GetComponent<Image>();
-        MonsterSurvivorArtLibrary.ApplySliced(backingImage, "ui_square_rounded_frame", new Color(0.05f, 0.12f, 0.20f, 0.85f));
-        backingImage.raycastTarget = false;
-        RectTransform backingRect = backingImage.rectTransform;
-        backingRect.anchorMin = backingRect.anchorMax = new Vector2(0.5f, 1f);
-        backingRect.pivot = new Vector2(0.5f, 1f);
-        backingRect.sizeDelta = new Vector2(128f, 128f);
-        backingRect.anchoredPosition = new Vector2(0f, -52f);
-        backingObject.SetActive(true);
-        backingObject.transform.SetSiblingIndex(0);
+
+        // 图标背后改成随强调色的径向柔光，去掉"方块底 + 圆形图"这种模板化层级。
+        Image glow = EnsureImageChild(button.transform, "IconGlow");
+        glow.sprite = MonsterSurvivorArtLibrary.GlowRadial();
+        glow.type = Image.Type.Simple;
+        Color glowColor = Color.Lerp(accent, Color.white, 0.30f);
+        glow.color = new Color(glowColor.r, glowColor.g, glowColor.b, 0.42f);
+        glow.raycastTarget = false;
+        RectTransform glowRect = glow.rectTransform;
+        glowRect.anchorMin = glowRect.anchorMax = new Vector2(0.5f, 1f);
+        glowRect.pivot = new Vector2(0.5f, 0.5f);
+        glowRect.sizeDelta = new Vector2(164f, 164f);
+        glowRect.anchoredPosition = new Vector2(0f, -124f);
 
         GameObject iconObject = existing == null ? new GameObject("MonsterSurvivorIcon", typeof(RectTransform), typeof(Image)) : existing.gameObject;
         iconObject.transform.SetParent(button.transform, false);
         Image image = iconObject.GetComponent<Image>();
         image.sprite = sprite;
-        image.color = Color.white;
+        // 程序图标本身偏霓虹，压一点亮度让图标和卡框同一色温。
+        image.color = new Color(0.86f, 0.92f, 1f, 1f);
         image.raycastTarget = false;
         RectTransform rect = image.rectTransform;
         rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 1f);
-        rect.pivot = new Vector2(0.5f, 1f);
+        rect.pivot = new Vector2(0.5f, 0.5f);
         rect.sizeDelta = new Vector2(104f, 104f);
-        rect.anchoredPosition = new Vector2(0f, -64f);
+        rect.anchoredPosition = new Vector2(0f, -124f);
         iconObject.SetActive(true);
-        iconObject.transform.SetSiblingIndex(1);
     }
 
     public static Sprite CreateFallbackIcon(Color accent)
@@ -443,11 +534,11 @@ public class UIManager : MonoBehaviour
         RectTransform accentRect = accent.GetComponent<RectTransform>();
         accentRect.anchorMin = new Vector2(0f, 1f); accentRect.anchorMax = new Vector2(1f, 1f);
         accentRect.pivot = new Vector2(0.5f, 1f); accentRect.sizeDelta = new Vector2(0f, 8f); accentRect.anchoredPosition = Vector2.zero;
-        accent.GetComponent<Image>().color = new Color(0.95f, 0.75f, 0.28f, 1f);
+        accent.GetComponent<Image>().color = new Color(0.72f, 0.60f, 0.36f, 1f);
 
         VictoryTitle = CreateText(card.transform, "VictoryTitle", "胜利！", 54, TextAnchor.MiddleCenter,
             new Vector2(0f, 188f), new Vector2(620f, 78f));
-        VictoryTitle.color = new Color(0.95f, 0.78f, 0.32f, 1f);
+        VictoryTitle.color = new Color(0.84f, 0.74f, 0.48f, 1f);
         VictorySubtitle = CreateText(card.transform, "VictorySubtitle", "血管守卫完成", 25, TextAnchor.MiddleCenter,
             new Vector2(0f, 132f), new Vector2(620f, 42f));
         VictorySubtitle.color = new Color(0.72f, 0.86f, 0.96f, 1f);

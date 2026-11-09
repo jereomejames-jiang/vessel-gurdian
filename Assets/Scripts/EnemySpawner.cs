@@ -249,6 +249,24 @@ public class EnemySpawner : MonoBehaviour
         enemy.currentHP = enemy.maxHP;
         enemy.moveSpeed *= 1f + timePressure * GameBalance.Get("spawn.speed_time_factor", 0.1f) +
             stagePressure * GameBalance.Get("spawn.speed_stage_factor", 0.15f);
+
+        // 第一幕专属缓和：只压第一幕的血量/接触伤害/移速，不影响第二、三幕难度。
+        if (stageIndex == 1)
+        {
+            enemy.maxHP = Mathf.Max(1, Mathf.RoundToInt(enemy.maxHP * GameBalance.Get("stage1.hp_mult", 1f)));
+            enemy.currentHP = enemy.maxHP;
+            enemy.contactDamage = Mathf.Max(1, Mathf.RoundToInt(enemy.contactDamage * GameBalance.Get("stage1.damage_mult", 1f)));
+            enemy.moveSpeed *= GameBalance.Get("stage1.speed_mult", 1f);
+        }
+        // 第二幕轻量减伤：静脉关缺廉价杂兵、控制/坦克型敌人集中，避免从"第一幕全削"直接跳到"全强度"的断层。
+        else if (stageIndex == 2)
+        {
+            enemy.maxHP = Mathf.Max(1, Mathf.RoundToInt(enemy.maxHP * GameBalance.Get("stage2.hp_mult", 1f)));
+            enemy.currentHP = enemy.maxHP;
+            enemy.contactDamage = Mathf.Max(1, Mathf.RoundToInt(enemy.contactDamage * GameBalance.Get("stage2.damage_mult", 1f)));
+            enemy.moveSpeed *= GameBalance.Get("stage2.speed_mult", 1f);
+        }
+
         if (timePressure > GameBalance.Get("spawn.late_damage_threshold", 0.75f) && enemy.contactDamage >= 2)
             enemy.contactDamage += stageIndex >= 3 ? GameBalance.GetInt("spawn.late_damage_stage3_add", 1) : 0;
 

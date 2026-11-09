@@ -325,6 +325,7 @@ public class SkillCodexManager : MonoBehaviour
         iconObject.transform.SetParent(button.transform, false);
         Image image = iconObject.GetComponent<Image>();
         image.sprite = sprite;
+        image.preserveAspect = true;
         image.color = unlocked ? Color.white : new Color(0.55f, 0.62f, 0.68f, 1f);
         image.raycastTarget = false;
         RectTransform rect = image.rectTransform;

@@ -160,6 +160,9 @@ public static class VesselSkillCatalog
             new Color(0.75f, 0.45f, 0.98f), new Color(0.40f, 0.88f, 0.98f),
             new Color(0.85f, 0.60f, 0.95f)
         };
-        return colors[IndexOf(type)];
+        // 色相表同时决定卡框发光色，统一降饱和：保留稀有度辨识度，但去掉霓虹感。
+        Color raw = colors[IndexOf(type)];
+        Color.RGBToHSV(raw, out float hue, out float sat, out float val);
+        return Color.HSVToRGB(hue, Mathf.Clamp(sat * 0.62f, 0.18f, 0.58f), Mathf.Clamp(val, 0.72f, 0.94f));
     }
 }

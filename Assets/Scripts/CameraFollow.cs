@@ -28,6 +28,13 @@ public class CameraFollow : MonoBehaviour
     public int trackedLevel = 1;
     public bool levelSubscribed;
     public bool initialized;
+    // 受击镜头震动：以叠加偏移实现，不污染跟随的 SmoothDamp 基准位置。
+    Vector3 appliedShake;
+    float appliedRoll;
+    float shakeMagnitude;
+    float shakeTimer;
+    float shakeDuration;
+    public float shakeRollFactor = 7f;
 
     void Awake() { viewCamera = GetComponent<Camera>(); }
     void OnEnable() { initialized = false; }
@@ -37,6 +44,7 @@ public class CameraFollow : MonoBehaviour
         levelViewStep = GameBalance.Get("camera.ortho_per_level", levelViewStep);
         maxOrthographicSize = GameBalance.Get("camera.ortho_max", maxOrthographicSize);
         lookAheadDistance = GameBalance.Get("camera.look_ahead", lookAheadDistance);
+        shakeRollFactor = GameBalance.Get("player.hit_shake_roll", shakeRollFactor);
         playerStats = FindAnyObjectByType<PlayerStats>();
         if (playerStats != null)
         {
@@ -50,8 +58,32 @@ public class CameraFollow : MonoBehaviour
 
     void LateUpdate()
     {
+        transform.position -= appliedShake;
         TickFollow(Time.deltaTime);
         TickZoom(Time.deltaTime);
+        TickShake(Time.deltaTime);
+        transform.position += appliedShake;
+        if (appliedRoll != 0f) transform.rotation = Quaternion.Euler(0f, 0f, appliedRoll);
+    }
+
+    public void Shake(float magnitude, float duration)
+    {
+        if (magnitude <= 0f || duration <= 0f) return;
+        shakeMagnitude = magnitude;
+        shakeDuration = duration;
+        shakeTimer = duration;
+    }
+
+    void TickShake(float deltaTime)
+    {
+        if (shakeTimer <= 0f) { appliedShake = Vector3.zero; appliedRoll = 0f; return; }
+        shakeTimer -= deltaTime;
+        float t = Mathf.Clamp01(shakeTimer / Mathf.Max(0.0001f, shakeDuration));
+        // 平方衰减：前段猛烈、尾段迅速收回，读起来更"脆"而不是均匀摇晃。
+        float mag = shakeMagnitude * t * t;
+        appliedShake = new Vector3(Random.Range(-mag, mag), Random.Range(-mag, mag), 0f);
+        appliedRoll = Random.Range(-mag, mag) * shakeRollFactor;
+        if (shakeTimer <= 0f) { appliedShake = Vector3.zero; appliedRoll = 0f; shakeMagnitude = 0f; shakeDuration = 0f; }
     }
 
     public void SnapToTarget()

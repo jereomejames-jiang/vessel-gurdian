@@ -22,6 +22,7 @@ public class CardRevealUI : MonoBehaviour
     public float flipTimer;
     public int previousLevel;
     public int nextLevel;
+    public Color frameAccent = new Color(0.62f, 0.74f, 0.84f, 1f);
     public float frontHold = 0.6f;
     public float flipDuration = 0.5f;
     public SkillCardDefinition activeCard;
@@ -69,8 +70,19 @@ public class CardRevealUI : MonoBehaviour
         nextLevel = Mathf.Clamp(toLevel, 1, 3);
         activeCard = card;
         SetFrontFace(card);
-        if (cardBackground != null) cardBackground.color = new Color(card.cardColor.r, card.cardColor.g, card.cardColor.b, 0.92f);
-        if (glowBorder != null) glowBorder.color = new Color(1f, 0.84f, 0f, 1f);
+        frameAccent = Color.Lerp(Color.Lerp(card.cardColor, Color.white, 0.42f), new Color(0.80f, 0.88f, 0.96f), 0.30f);
+        if (cardBackground != null)
+        {
+            // 与三选一卡同一套玻璃语言：底色接近背景，卡色只留一点色相倾向。
+            MonsterSurvivorArtLibrary.ApplySliced(cardBackground, "ui_button_blue",
+                Color.Lerp(new Color(0.03f, 0.06f, 0.10f, 0.88f), card.cardColor, 0.08f));
+        }
+        if (glowBorder != null)
+        {
+            glowBorder.sprite = MonsterSurvivorArtLibrary.CardFrame();
+            glowBorder.type = Image.Type.Sliced;
+            glowBorder.color = frameAccent;
+        }
         if (cardIcon != null)
         {
             cardIcon.sprite = MonsterSurvivorArtLibrary.SkillIcon(card.linkedUpgradeType);
@@ -155,7 +167,9 @@ public class CardRevealUI : MonoBehaviour
             educationText.alignment = TextAnchor.MiddleCenter;
             educationText.color = new Color(1f, 0.82f, 0.38f, 1f);
         }
-        if (cardBackground != null) cardBackground.color = new Color(0.04f, 0.16f, 0.22f, 0.97f);
+        if (cardBackground != null)
+            MonsterSurvivorArtLibrary.ApplySliced(cardBackground, "ui_button_blue",
+                Color.Lerp(new Color(0.03f, 0.06f, 0.10f, 0.94f), frameAccent, 0.05f));
     }
 
     public string LevelLine()
@@ -216,7 +230,10 @@ public class CardRevealUI : MonoBehaviour
 
         if (glowBorder != null)
         {
-            glowBorder.color = new Color(1f, 0.84f, 0f, 0.75f);
+            // 边框呼吸，替代原来钉死的金色描边：细发光线比整块高饱和色更像"奖励卡"。
+            float breathe = 0.5f + 0.5f * Mathf.Sin(timer * 3.2f);
+            glowBorder.color = new Color(frameAccent.r, frameAccent.g, frameAccent.b,
+                Mathf.Lerp(0.60f, 0.95f, breathe));
         }
 
         if (showingEducation && !isFlipping && timer > frontHold + flipDuration + 0.45f &&

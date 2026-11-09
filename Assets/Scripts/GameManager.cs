@@ -24,6 +24,7 @@ public class GameManager : MonoBehaviour
     public int experienceCollected;
     public event Action OnRunStatsChanged;
     public event Action<bool> OnGameEnded;
+    EnemySpawner spawner;
 
     void Awake()
     {
@@ -50,7 +51,7 @@ public class GameManager : MonoBehaviour
         playerStats = FindAnyObjectByType<PlayerStats>();
         if (playerStats != null) playerStats.OnDeath += HandleDeath;
         levelUpManager = FindAnyObjectByType<LevelUpManager>();
-        EnemySpawner spawner = FindAnyObjectByType<EnemySpawner>();
+        spawner = FindAnyObjectByType<EnemySpawner>();
         if (spawner != null) ApplyStageTheme(spawner);
         if (spawner != null) spawner.spawnInterval = selectedLevel == 1 ? GameBalance.Get("game.spawn_interval_s1", 1.15f) :
             (selectedLevel == 2 ? GameBalance.Get("game.spawn_interval_s2", 1f) : GameBalance.Get("game.spawn_interval_s3", 0.85f));
@@ -69,7 +70,14 @@ public class GameManager : MonoBehaviour
         if (Input.GetKeyDown(KeyCode.F8)) GameBalance.Reload();
         if (gameEnded || Time.timeScale <= 0f) return;
         elapsedTime = Mathf.Min(gameDuration, elapsedTime + Time.deltaTime);
-        if (elapsedTime >= gameDuration) EndGame();
+        if (elapsedTime >= gameDuration && !IsBossEngaged()) EndGame();
+    }
+
+    // Boss 已出场且尚未击杀时，让战斗自然打完，不因到达 game.duration 直接判负。
+    bool IsBossEngaged()
+    {
+        if (!requireBossDefeat || spawner == null) return false;
+        return spawner.bossSpawned && !spawner.bossDefeated;
     }
 
     public void StartGame()

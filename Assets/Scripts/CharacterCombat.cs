@@ -46,6 +46,7 @@ public class CharacterCombat : MonoBehaviour
         skillCollection = FindAnyObjectByType<PlayerSkillCollection>();
         stats.OnLevelUp += HandleLevelUp;
         MonsterSurvivorArtLibrary.ApplyCharacter(gameObject, role);
+        if (GetComponent<PlayerHitFeedback>() == null) gameObject.AddComponent<PlayerHitFeedback>();
         HandleLevelUp(stats.level);
     }
 
