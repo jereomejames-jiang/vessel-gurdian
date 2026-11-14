@@ -150,14 +150,15 @@ public class EnemyArchetype : MonoBehaviour
             enemy.cloneIntervalMin = GameBalance.Get(prefix + "clone_interval_min", 2f);
             enemy.cloneAccel = GameBalance.Get(prefix + "clone_accel", 0.85f);
             enemy.cloneHpMult = GameBalance.Get(prefix + "clone_hp_mult", 0.6f);
+            enemy.cloneMaxCount = GameBalance.GetInt(prefix + "clone_max_count", 6);
             enemy.isPrimitiveCell = true;
         }
         
-        // 靶点遮蔽者：周围敌人免疫暴击
+        // 靶点遮蔽者：光环内敌人减伤
         if (kind == EnemyKind.TargetBlocker)
         {
             enemy.auraRadius = GameBalance.Get(prefix + "aura_radius", 3f);
-            enemy.auraDuration = GameBalance.Get(prefix + "aura_duration", 1.5f);
+            enemy.auraDamageReduction = GameBalance.Get(prefix + "aura_damage_reduction", 0.2f);
             enemy.isTargetBlocker = true;
         }
     }

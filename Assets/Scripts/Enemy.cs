@@ -43,14 +43,15 @@ public class Enemy : MonoBehaviour
     public float cloneIntervalMin = 2f;
     public float cloneAccel = 0.85f;
     public float cloneHpMult = 0.6f;
+    public int cloneMaxCount = 6;
     public float aliveTime;
     public float currentCloneInterval;
     public float cloneTimer;
     
-    // 靶点遮蔽者：周围敌人免疫暴击
+    // 靶点遮蔽者：为光环内的敌人减伤
     public bool isTargetBlocker;
     public float auraRadius = 3f;
-    public float auraDuration = 1.5f;
+    public float auraDamageReduction = 0.2f;
 
     void Awake()
     {
@@ -134,9 +135,21 @@ public class Enemy : MonoBehaviour
             if (cloneTimer >= currentCloneInterval)
             {
                 cloneTimer = 0f;
-                ClonePrimitiveCell();
+                if (CountPrimitiveCells() < cloneMaxCount) ClonePrimitiveCell();
             }
         }
+    }
+
+    // 复制体本身也会继续复制，所以按场上原始细胞总数封顶，避免指数增长挤满屏幕。
+    int CountPrimitiveCells()
+    {
+        int count = 0;
+        for (int i = 0; i < alive.Count; i++)
+        {
+            Enemy other = alive[i];
+            if (other != null && other != this && other.isPrimitiveCell && other.currentHP > 0 && !other.deathPending) count++;
+        }
+        return count + 1;
     }
     
     void ClonePrimitiveCell()
@@ -203,23 +216,15 @@ public class Enemy : MonoBehaviour
     int ApplyTargetBlockerReduction(int amount)
     {
         if (amount <= 0) return amount;
-        Collider2D[] hits = Physics2D.OverlapCircleAll(transform.position, 0.1f);
-        for (int i = 0; i < hits.Length; i++)
+        Vector2 pos = rb != null ? rb.position : (Vector2)transform.position;
+        for (int i = 0; i < alive.Count; i++)
         {
-            Enemy blocker = hits[i] == null ? null : hits[i].GetComponent<Enemy>();
-            if (blocker != null && blocker.isTargetBlocker && blocker.currentHP > 0)
-            {
-                // 检查是否在靶点遮蔽者光环范围内
-                Collider2D[] auraHits = Physics2D.OverlapCircleAll(blocker.transform.position, blocker.auraRadius);
-                for (int j = 0; j < auraHits.Length; j++)
-                {
-                    if (auraHits[j] != null && auraHits[j].gameObject == gameObject)
-                    {
-                        // 在光环内，减伤50%
-                        return Mathf.Max(1, amount / 2);
-                    }
-                }
-            }
+            Enemy blocker = alive[i];
+            if (blocker == null || blocker == this || !blocker.isTargetBlocker || blocker.currentHP <= 0) continue;
+            Vector2 blockerPos = blocker.rb != null ? blocker.rb.position : (Vector2)blocker.transform.position;
+            if ((pos - blockerPos).sqrMagnitude > blocker.auraRadius * blocker.auraRadius) continue;
+            // 多个遮蔽者不叠加，取一层减伤
+            return Mathf.Max(1, Mathf.RoundToInt(amount * (1f - blocker.auraDamageReduction)));
         }
         return amount;
     }

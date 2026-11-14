@@ -42,7 +42,10 @@ public class PlayerController : MonoBehaviour
         turnSpeed = GameBalance.Get("player.rotate_speed", turnSpeed);
         if (rb == null) rb = GetComponent<Rigidbody2D>();
         rb.interpolation = RigidbodyInterpolation2D.Interpolate;
-        rb.rotation = headingAngle - 90f;
+        // 刚体不再跟着 heading 转：朝向只体现在 Heading 向量和素材的左右翻面上。
+        // 一旦旋转，侧视的角色立绘就会在屏幕上原地打转。
+        rb.freezeRotation = true;
+        rb.rotation = 0f;
     }
 
     void Update()
@@ -83,7 +86,6 @@ public class PlayerController : MonoBehaviour
         currentThrottle = autoMove ? 1f : 0f;
         // Always advance along the current heading; W/S have no effect.
         rb.MovePosition(rb.position + Heading * (moveSpeed * currentThrottle * slowZoneMultiplier * Time.fixedDeltaTime));
-        rb.MoveRotation(headingAngle - 90f);
     }
 
     void OnDisable()

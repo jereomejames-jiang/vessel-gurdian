@@ -246,14 +246,15 @@ Boss出场,boss.wall_thickness,0.6,竞技场墙体厚度(世界单位)
 敌人-原始细胞,enemy.primitive.clone_interval_min,2,最短复制间隔(秒)
 敌人-原始细胞,enemy.primitive.clone_accel,0.85,每次复制间隔缩短倍率
 敌人-原始细胞,enemy.primitive.clone_hp_mult,0.6,复制体HP倍率
+敌人-原始细胞,enemy.primitive.clone_max_count,6,场上原始细胞总数上限
 敌人-靶点遮蔽者,enemy.blocker.hp_base,8,基础HP
 敌人-靶点遮蔽者,enemy.blocker.hp_per_stage,3,每幕HP增加
 敌人-靶点遮蔽者,enemy.blocker.speed_base,1.5,基础移速
 敌人-靶点遮蔽者,enemy.blocker.speed_per_stage,0.1,每幕移速增加
 敌人-靶点遮蔽者,enemy.blocker.damage,2,接触伤害
 敌人-靶点遮蔽者,enemy.blocker.xp,7,基础经验
-敌人-靶点遮蔽者,enemy.blocker.aura_radius,3,免疫暴击光环半径
-敌人-靶点遮蔽者,enemy.blocker.aura_duration,1.5,免疫持续(秒)
+敌人-靶点遮蔽者,enemy.blocker.aura_radius,3,减伤光环半径
+敌人-靶点遮蔽者,enemy.blocker.aura_damage_reduction,0.2,光环内敌人受到的伤害降低比例
 敌人-Boss,enemy.boss.hp_base,34,基础HP
 敌人-Boss,enemy.boss.hp_per_stage,12,每关卡HP增加
 敌人-Boss,enemy.boss.speed_base,0.7,基础移速

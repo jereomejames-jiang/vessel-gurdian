@@ -93,22 +93,29 @@ public class InfiniteBrickBackground : MonoBehaviour
         }
         if (brickSprite == null) brickSprite = CreateBrickSprite();
 
-        for (int i = tileRoot.childCount - 1; i >= 0; i--)
-            Destroy(tileRoot.GetChild(i).gameObject);
-
         columns = Mathf.Max(5, columns | 1);
         rows = Mathf.Max(7, rows | 1);
-        for (int y = 0; y < rows; y++)
+        int needed = columns * rows;
+        while (tileRoot.childCount < needed)
         {
-            for (int x = 0; x < columns; x++)
-            {
-                GameObject tile = new GameObject("Brick");
-                tile.transform.SetParent(tileRoot, false);
-                SpriteRenderer renderer = tile.AddComponent<SpriteRenderer>();
-                renderer.sprite = brickSprite;
-                renderer.color = Color.white;
-                renderer.sortingOrder = sortingOrder;
-            }
+            GameObject tile = new GameObject("Brick");
+            tile.transform.SetParent(tileRoot, false);
+            tile.AddComponent<SpriteRenderer>();
+        }
+
+        // Tile 全部复用，换主题只是重新指认 sprite。旧实现在这里 Destroy 再重建，
+        // 而 Destroy 是帧末才生效：LayoutField 从索引 0 取到的是尚未删除的旧 tile，
+        // 新建的 tile 全留在原点，切关卡后砖墙就塌成一坨。
+        for (int i = 0; i < tileRoot.childCount; i++)
+        {
+            Transform tile = tileRoot.GetChild(i);
+            bool active = i < needed;
+            tile.gameObject.SetActive(active);
+            if (!active) continue;
+            SpriteRenderer renderer = tile.GetComponent<SpriteRenderer>();
+            renderer.sprite = brickSprite;
+            renderer.color = Color.white;
+            renderer.sortingOrder = sortingOrder;
         }
         LayoutField();
     }

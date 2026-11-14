@@ -65,24 +65,14 @@ public class CardRevealUI : MonoBehaviour
         revealPanel.transform.SetAsLastSibling();
         // Keep the dimmer stable; only the card itself should pop in.
         revealPanel.transform.localScale = Vector3.one;
+        // 面板刚激活时 rect 还没算出来，先强制一次布局，切角贴图才能按真实像素尺寸生成。
+        Canvas.ForceUpdateCanvases();
+        LayoutRevealCard();
 
         previousLevel = Mathf.Max(0, fromLevel);
         nextLevel = Mathf.Clamp(toLevel, 1, 3);
         activeCard = card;
         SetFrontFace(card);
-        frameAccent = Color.Lerp(Color.Lerp(card.cardColor, Color.white, 0.42f), new Color(0.80f, 0.88f, 0.96f), 0.30f);
-        if (cardBackground != null)
-        {
-            // 与三选一卡同一套玻璃语言：底色接近背景，卡色只留一点色相倾向。
-            MonsterSurvivorArtLibrary.ApplySliced(cardBackground, "ui_button_blue",
-                Color.Lerp(new Color(0.03f, 0.06f, 0.10f, 0.88f), card.cardColor, 0.08f));
-        }
-        if (glowBorder != null)
-        {
-            glowBorder.sprite = MonsterSurvivorArtLibrary.CardFrame();
-            glowBorder.type = Image.Type.Sliced;
-            glowBorder.color = frameAccent;
-        }
         if (cardIcon != null)
         {
             cardIcon.sprite = MonsterSurvivorArtLibrary.SkillIcon(card.linkedUpgradeType);
@@ -101,6 +91,60 @@ public class CardRevealUI : MonoBehaviour
         flipTimer = 0f;
         timer = 0f;
         Time.timeScale = 0f;
+    }
+
+    // 与升级卡同一套粗野主义构件：切角黑底 + 1px 钢灰硬边，青色只留给文字强调。
+    static readonly Color RevealBody = new Color(0.055f, 0.071f, 0.094f, 0.96f);
+    static readonly Color RevealLine = new Color(0.431f, 0.498f, 0.569f, 0.70f);
+    static readonly Color RevealTitle = new Color(0.969f, 0.980f, 1.0f, 1f);
+    static readonly Color RevealBodyText = new Color(0.761f, 0.808f, 0.855f, 1f);
+    static readonly Color RevealCyan = new Color(0.0f, 0.82f, 0.92f, 1f);
+
+    void LayoutRevealCard()
+    {
+        frameAccent = RevealCyan;
+        if (cardBackground != null)
+        {
+            Vector2 size = PixelSize(cardBackground.rectTransform, new Vector2(412f, 552f));
+            cardBackground.sprite = MonsterSurvivorArtLibrary.ChamferFill(Mathf.RoundToInt(size.x), Mathf.RoundToInt(size.y), 16f);
+            cardBackground.type = Image.Type.Simple;
+            cardBackground.color = RevealBody;
+        }
+        if (glowBorder != null)
+        {
+            Vector2 size = PixelSize(glowBorder.rectTransform, new Vector2(412f, 552f));
+            glowBorder.sprite = MonsterSurvivorArtLibrary.ChamferLine(Mathf.RoundToInt(size.x), Mathf.RoundToInt(size.y), 16f, 1f);
+            glowBorder.type = Image.Type.Simple;
+            glowBorder.color = RevealLine;
+        }
+
+        // 正面和背面共用一套骨架：图标—标题—正文—提示，正文格子放大到能吃完科普长文。
+        SetRect(cardIcon == null ? null : cardIcon.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
+            new Vector2(120f, 120f), new Vector2(0f, -40f));
+        SetRect(cardTitle == null ? null : cardTitle.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
+            new Vector2(372f, 44f), new Vector2(0f, -176f));
+        SetRect(cardDescription == null ? null : cardDescription.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
+            new Vector2(372f, 216f), new Vector2(0f, -228f));
+        SetRect(educationText == null ? null : educationText.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
+            new Vector2(372f, 44f), new Vector2(0f, -456f));
+    }
+
+    // rect 还没算出来（面板刚激活、或父级是拉伸锚点）时退回作者写的 420x560 尺寸。
+    static Vector2 PixelSize(RectTransform rect, Vector2 fallback)
+    {
+        if (rect == null) return fallback;
+        float width = rect.rect.width;
+        float height = rect.rect.height;
+        return width < 8f || height < 8f ? fallback : new Vector2(width, height);
+    }
+
+    static void SetRect(RectTransform rect, Vector2 anchor, Vector2 pivot, Vector2 size, Vector2 position)
+    {
+        if (rect == null) return;
+        rect.anchorMin = rect.anchorMax = anchor;
+        rect.pivot = pivot;
+        rect.sizeDelta = size;
+        rect.anchoredPosition = position;
     }
 
     public void EnsureCardIcon()
@@ -130,20 +174,25 @@ public class CardRevealUI : MonoBehaviour
         if (cardTitle != null)
         {
             cardTitle.text = card.displayName;
-            cardTitle.fontSize = 34;
+            cardTitle.fontSize = 30;
+            cardTitle.font = RuntimeFont.GetTitle();
+            cardTitle.color = RevealTitle;
         }
         if (cardDescription != null)
         {
-            cardDescription.text = LevelLine() + "\n\n" + ShortDescription(card);
-            cardDescription.fontSize = 22;
-            cardDescription.alignment = TextAnchor.MiddleCenter;
+            cardDescription.text = LevelLine() + "\n" + ShortDescription(card);
+            cardDescription.fontSize = 18;
+            cardDescription.font = RuntimeFont.Get();
+            cardDescription.alignment = TextAnchor.UpperLeft;
+            cardDescription.color = RevealBodyText;
         }
         if (educationText != null)
         {
             educationText.text = "翻牌查看科普";
             educationText.fontSize = 15;
+            educationText.font = RuntimeFont.GetTitle();
             educationText.alignment = TextAnchor.MiddleCenter;
-            educationText.color = new Color(0.62f, 0.78f, 0.86f, 1f);
+            educationText.color = RevealCyan; // 青色提示
         }
     }
 
@@ -152,24 +201,26 @@ public class CardRevealUI : MonoBehaviour
         if (cardTitle != null)
         {
             cardTitle.text = "科普";
-            cardTitle.fontSize = 28;
+            cardTitle.fontSize = 26;
+            cardTitle.font = RuntimeFont.GetTitle();
+            cardTitle.color = RevealTitle;
         }
         if (cardDescription != null)
         {
             cardDescription.text = card.educationText;
-            cardDescription.fontSize = 21;
-            cardDescription.alignment = TextAnchor.MiddleCenter;
+            cardDescription.fontSize = 17;
+            cardDescription.font = RuntimeFont.Get();
+            cardDescription.alignment = TextAnchor.UpperLeft;
+            cardDescription.color = RevealBodyText;
         }
         if (educationText != null)
         {
             educationText.text = card.displayName + " · 医学提示";
             educationText.fontSize = 15;
+            educationText.font = RuntimeFont.GetTitle();
             educationText.alignment = TextAnchor.MiddleCenter;
-            educationText.color = new Color(1f, 0.82f, 0.38f, 1f);
+            educationText.color = new Color(0.92f, 0.22f, 0.18f, 1f); // 警示红：功能性颜色，不参与单青强调体系
         }
-        if (cardBackground != null)
-            MonsterSurvivorArtLibrary.ApplySliced(cardBackground, "ui_button_blue",
-                Color.Lerp(new Color(0.03f, 0.06f, 0.10f, 0.94f), frameAccent, 0.05f));
     }
 
     public string LevelLine()
@@ -230,7 +281,7 @@ public class CardRevealUI : MonoBehaviour
 
         if (glowBorder != null)
         {
-            // 边框呼吸，替代原来钉死的金色描边：细发光线比整块高饱和色更像"奖励卡"。
+            // 青色边框呼吸：细发光线增加科技感。
             float breathe = 0.5f + 0.5f * Mathf.Sin(timer * 3.2f);
             glowBorder.color = new Color(frameAccent.r, frameAccent.g, frameAccent.b,
                 Mathf.Lerp(0.60f, 0.95f, breathe));

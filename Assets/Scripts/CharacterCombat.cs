@@ -55,6 +55,7 @@ public class CharacterCombat : MonoBehaviour
         if (!initialized || Time.timeScale <= 0f || stats.currentHP <= 0 ||
             (GameManager.Instance != null && GameManager.Instance.gameEnded)) return;
         evolutionNoticeTimer = Mathf.Max(0f, evolutionNoticeTimer - Time.deltaTime);
+        UpdateWalkFacing();
         VesselSkillUpdate();
         if (rank < 4) return;
         specialTimer -= Time.deltaTime;
@@ -122,6 +123,7 @@ public class CharacterCombat : MonoBehaviour
     {
         if (!initialized) Initialize(CharacterCatalog.SelectedRole);
         Vector2 aim = AimDirection();
+        PlayAttackVisual(aim);
         if (role == CharacterRole.Doctor)
         {
             Slash(aim);
@@ -134,6 +136,38 @@ public class CharacterCombat : MonoBehaviour
         }
         else ThrowAmpoule(aim);
         HandleAttackSkills();
+    }
+
+    MonsterSurvivorSpriteAnimator spriteAnimator;
+
+    MonsterSurvivorSpriteAnimator Animator()
+    {
+        if (spriteAnimator == null) spriteAnimator = GetComponent<MonsterSurvivorSpriteAnimator>();
+        return spriteAnimator;
+    }
+
+    // 侧视素材跟着 aim 翻面，攻击条带放一次就自己回到走路循环。
+    void PlayAttackVisual(Vector2 aim)
+    {
+        MonsterSurvivorSpriteAnimator animator = Animator();
+        if (animator == null) return;
+        ApplyFacing(animator, aim.x);
+        animator.Play("attack");
+    }
+
+    // 走路时朝行进方向翻面，否则角色会一直侧对前进方向。
+    void UpdateWalkFacing()
+    {
+        MonsterSurvivorSpriteAnimator animator = Animator();
+        if (animator == null || animator.InOneShot || controller == null) return;
+        ApplyFacing(animator, controller.Heading.x);
+    }
+
+    // 正上/正下方向的 x 只是浮点噪声，保持上一面的朝向，不然角色会原地抖着翻面。
+    static void ApplyFacing(MonsterSurvivorSpriteAnimator animator, float horizontal)
+    {
+        if (Mathf.Abs(horizontal) < 0.05f) return;
+        animator.facing = horizontal > 0f ? 1 : -1;
     }
 
     public int GetVesselSkillLevel(UpgradeType type)

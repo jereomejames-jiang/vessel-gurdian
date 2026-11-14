@@ -20,8 +20,8 @@ public static class MonsterSurvivorArtLibrary
         // Unity objects can be destroyed during Play Mode/domain reload while
         // their managed references remain in this static cache (Unity fake-null).
         // Rebuild the complete set whenever any cached frame has been destroyed.
-        if (frameCache.TryGetValue(assetName, out cached) && cached != null &&
-            cached.Length == 4 && Array.TrueForAll(cached, sprite => sprite != null))
+        if (frameCache.TryGetValue(assetName, out cached) && cached != null && cached.Length > 0 &&
+            Array.TrueForAll(cached, sprite => sprite != null))
             return cached;
         Sprite[] sheet = LoadSheetFromResources(assetName);
         if (sheet != null) { frameCache[assetName] = sheet; return sheet; }
@@ -47,23 +47,51 @@ public static class MonsterSurvivorArtLibrary
         return frames == null || frames.Length == 0 ? null : frames[0];
     }
 
-    // Real imported sprite sheets (4 horizontal frames) take priority over the
-    // procedural fallback so hand-made art can replace generated placeholders.
+    // 美术组条带的切法。帧数/步长/锚点必须逐张写死：条带由 tools/repack_sheet.py
+    // 按内容重切回填过，每姿以躯干列对齐到格子中心，所以 pivot 统一 0.5；
+    // 攻击帧的刀光比走路宽，步长单独给 100，等宽切走路会切出半张空帧。
+    struct SheetSpec
+    {
+        public readonly int frames;
+        public readonly int pitch;
+        public readonly float pivotX;
+        public SheetSpec(int frames, int pitch, float pivotX)
+        {
+            this.frames = frames; this.pitch = pitch; this.pivotX = pivotX;
+        }
+    }
+
+    static readonly Dictionary<string, SheetSpec> sheetSpecs = new Dictionary<string, SheetSpec>
+    {
+        { "character_doctor", new SheetSpec(5, 75, 0.5f) },
+        { "character_doctor_attack", new SheetSpec(5, 84, 0.5f) },
+    };
+
+    // 真实导入的序列图优先于程序化占位，美术素材到位就直接顶掉生成图。
     static Sprite[] LoadSheetFromResources(string assetName)
     {
         Texture2D tex = Resources.Load<Texture2D>(assetName);
         if (tex == null && assetName == "enemy_cell_shadow") tex = DecodeEmbeddedCellShadow();
         if (tex == null) return null;
-        const int frames = 4;
-        if (tex.width % frames != 0) return null;
-        int fw = tex.width / frames;
+        SheetSpec spec;
+        bool hasSpec = sheetSpecs.TryGetValue(assetName, out spec);
+        int frames = hasSpec ? spec.frames : 4;
+        int pitch = hasSpec ? spec.pitch : tex.width / frames;
+        float pivotX = hasSpec ? spec.pivotX : 0.5f;
+        if (pitch <= 0 || frames * pitch > tex.width)
+        {
+            // 以前这里静默退回程序化占位图，素材明明在包里却"形象没变"，查不到原因。
+            Debug.LogWarning("序列图 " + assetName + " 是 " + tex.width + "x" + tex.height +
+                "，装不下 " + frames + " 帧 x " + pitch + "px，改用程序化占位图。");
+            return null;
+        }
         int fh = tex.height;
-        if (fw <= 0 || fh <= 0) return null;
+        if (fh <= 0) return null;
         float ppu = Mathf.Max(1f, fh * 1.5f);
         Sprite[] result = new Sprite[frames];
         for (int i = 0; i < frames; i++)
         {
-            result[i] = Sprite.Create(tex, new Rect(i * fw, 0, fw, fh), new Vector2(0.5f, 0.5f), ppu);
+            result[i] = Sprite.Create(tex, new Rect(i * pitch, 0, pitch, fh), new Vector2(pivotX, 0.5f), ppu);
             result[i].name = assetName + "_frame_" + i;
         }
         return result;
@@ -155,17 +183,25 @@ public static class MonsterSurvivorArtLibrary
 
     public static void ApplyMenuLightPoint(GameObject player)
     {
-        ApplyCharacterFrames(player, "menu_light_point", Vector3.one * 0.78f, 7f);
+        ApplyCharacterFrames(player, "menu_light_point", 0.78f, 7f);
     }
 
     public static void ApplyCharacter(GameObject player, CharacterRole role)
     {
         string style = role == CharacterRole.Nurse ? "character_nurse" :
             (role == CharacterRole.Pharmacist ? "character_pharmacist" : "character_doctor");
-        ApplyCharacterFrames(player, style, Vector3.one * 1.65f, 5f);
+        ApplyCharacterFrames(player, style, 1.65f, 5f);
+        // 攻击条带目前只有医生出了素材，其余角色 Play("attack") 会静默跳过。
+        if (role != CharacterRole.Doctor || player == null) return;
+        MonsterSurvivorSpriteAnimator animator = player.GetComponent<MonsterSurvivorSpriteAnimator>();
+        if (animator == null) return;
+        animator.SetClip("attack", LoadFrames("character_doctor_attack"), 12f, false);
     }
 
-    static void ApplyCharacterFrames(GameObject player, string style, Vector3 scale, float frameRate)
+    // worldHeight 是整张帧在世界上占多高，不是缩放倍数：
+    // 美术组的条带是 64px 高、程序化占位是 96px 高，用固定倍数缩放会让真素材
+    // 一换上去就小一圈。按帧高归一以后，两种来源的视觉尺寸一致。
+    static void ApplyCharacterFrames(GameObject player, string style, float worldHeight, float frameRate)
     {
         if (player == null) return;
         SpriteRenderer renderer = player.GetComponent<SpriteRenderer>();
@@ -180,7 +216,9 @@ public static class MonsterSurvivorArtLibrary
         renderer.sprite = frames[0];
         renderer.color = Color.white;
         renderer.sortingOrder = 5;
-        player.transform.localScale = scale;
+        float bounds = frames[0].bounds.size.y;
+        player.transform.localScale = Vector3.one *
+            (bounds > 0.0001f ? worldHeight / bounds : worldHeight);
         MonsterSurvivorSpriteAnimator animator = player.GetComponent<MonsterSurvivorSpriteAnimator>();
         if (animator == null) animator = player.AddComponent<MonsterSurvivorSpriteAnimator>();
         animator.SetFrames(frames, frameRate);
@@ -285,6 +323,415 @@ public static class MonsterSurvivorArtLibrary
         float qx = Mathf.Max(radius - x, x - (size - 1f - radius), 0f);
         float qy = Mathf.Max(radius - y, y - (size - 1f - radius), 0f);
         return radius - Mathf.Sqrt(qx * qx + qy * qy);
+    }
+
+    // 明日方舟风：水平扫描线，每 4 像素一条，极淡，叠加在卡体上增加科技感。
+    public static Sprite ScanLines()
+    {
+        Sprite cached;
+        if (singleCache.TryGetValue("scan_lines", out cached) && cached != null) return cached;
+        const int size = 128;
+        Texture2D texture = new Texture2D(size, size, TextureFormat.RGBA32, false);
+        texture.name = "OriginalSurvivorArt_scan_lines";
+        texture.filterMode = FilterMode.Point;
+        texture.wrapMode = TextureWrapMode.Repeat;
+        Color[] pixels = new Color[size * size];
+        for (int y = 0; y < size; y++)
+        {
+            for (int x = 0; x < size; x++)
+            {
+                // 每 4 像素一条线，alpha 0.04
+                pixels[y * size + x] = (y % 4 == 0) ? new Color(1f, 1f, 1f, 0.04f) : Color.clear;
+            }
+        }
+        texture.SetPixels(pixels);
+        texture.Apply();
+        cached = Sprite.Create(texture, new Rect(0f, 0f, size, size), new Vector2(0.5f, 0.5f), size);
+        cached.name = "OriginalSurvivorArt_scan_lines";
+        singleCache["scan_lines"] = cached;
+        return cached;
+    }
+
+    // 明日方舟风：斜切角矩形框，四角 45° 切角而非圆角，锐利边缘。
+    public static Sprite DiagonalFrame()
+    {
+        Sprite cached;
+        if (singleCache.TryGetValue("diagonal_frame", out cached) && cached != null) return cached;
+        const int size = 128;
+        const float chamfer = 16f;
+        Texture2D texture = new Texture2D(size, size, TextureFormat.RGBA32, false);
+        texture.name = "OriginalSurvivorArt_diagonal_frame";
+        texture.filterMode = FilterMode.Bilinear;
+        texture.wrapMode = TextureWrapMode.Clamp;
+        Color[] clear = new Color[size * size];
+        texture.SetPixels(clear);
+        for (int y = 0; y < size; y++)
+        {
+            for (int x = 0; x < size; x++)
+            {
+                // 四角切角区域：切掉的三角形
+                bool cutTopLeft = x < chamfer && y < chamfer && (x + y) < chamfer;
+                bool cutTopRight = x > (size - chamfer - 1) && y < chamfer && ((size - 1 - x) + y) < chamfer;
+                bool cutBottomLeft = x < chamfer && y > (size - chamfer - 1) && (x + (size - 1 - y)) < chamfer;
+                bool cutBottomRight = x > (size - chamfer - 1) && y > (size - chamfer - 1) && ((size - 1 - x) + (size - 1 - y)) < chamfer;
+                if (cutTopLeft || cutTopRight || cutBottomLeft || cutBottomRight) continue;
+                // 2px 亮边
+                bool onEdge = x < 2 || y < 2 || x >= size - 2 || y >= size - 2;
+                if (onEdge) { texture.SetPixel(x, y, new Color(1f, 1f, 1f, 0.85f)); continue; }
+                // 内侧 3px 衰减
+                float edgeDist = Mathf.Min(x, y, size - 1 - x, size - 1 - y);
+                if (edgeDist < 5f) texture.SetPixel(x, y, new Color(1f, 1f, 1f, Mathf.Lerp(0.45f, 0.08f, (edgeDist - 2f) / 3f)));
+            }
+        }
+        texture.Apply();
+        cached = Sprite.Create(texture, new Rect(0f, 0f, size, size), new Vector2(0.5f, 0.5f), size, 0,
+            SpriteMeshType.FullRect, new Vector4(20f, 20f, 20f, 20f));
+        cached.name = "OriginalSurvivorArt_diagonal_frame";
+        singleCache["diagonal_frame"] = cached;
+        return cached;
+    }
+
+    // 明日方舟风：角标括号，32x32，L 形，用于四角装饰。
+    public static Sprite CornerBracket()
+    {
+        Sprite cached;
+        if (singleCache.TryGetValue("corner_bracket", out cached) && cached != null) return cached;
+        const int size = 32;
+        Texture2D texture = new Texture2D(size, size, TextureFormat.RGBA32, false);
+        texture.name = "OriginalSurvivorArt_corner_bracket";
+        texture.filterMode = FilterMode.Point;
+        texture.wrapMode = TextureWrapMode.Clamp;
+        Color[] clear = new Color[size * size];
+        texture.SetPixels(clear);
+        // 左上角 L 形：左边 2px 宽，顶边 2px 高，长度 12px
+        for (int i = 0; i < 12; i++)
+        {
+            texture.SetPixel(1, 1 + i, Color.white);
+            texture.SetPixel(2, 1 + i, Color.white);
+            texture.SetPixel(1 + i, 1, Color.white);
+            texture.SetPixel(1 + i, 2, Color.white);
+        }
+        texture.Apply();
+        cached = Sprite.Create(texture, new Rect(0f, 0f, size, size), new Vector2(0f, 1f), size);
+        cached.name = "OriginalSurvivorArt_corner_bracket";
+        singleCache["corner_bracket"] = cached;
+        return cached;
+    }
+
+    // 明日方舟风：技术刻度线，128x8，带刻度标记。
+    public static Sprite TechScale()
+    {
+        Sprite cached;
+        if (singleCache.TryGetValue("tech_scale", out cached) && cached != null) return cached;
+        const int w = 128, h = 8;
+        Texture2D texture = new Texture2D(w, h, TextureFormat.RGBA32, false);
+        texture.name = "OriginalSurvivorArt_tech_scale";
+        texture.filterMode = FilterMode.Point;
+        texture.wrapMode = TextureWrapMode.Clamp;
+        Color[] clear = new Color[w * h];
+        texture.SetPixels(clear);
+        // 基线
+        for (int x = 0; x < w; x++) texture.SetPixel(x, 3, new Color(1f, 1f, 1f, 0.6f));
+        // 刻度：每 16px 一个长刻度，每 8px 一个短刻度
+        for (int x = 0; x < w; x += 8)
+        {
+            int tickH = (x % 16 == 0) ? 6 : 4;
+            for (int y = 4; y < 4 + tickH && y < h; y++) texture.SetPixel(x, y, new Color(1f, 1f, 1f, 0.8f));
+        }
+        texture.Apply();
+        cached = Sprite.Create(texture, new Rect(0f, 0f, w, h), new Vector2(0.5f, 0.5f), h);
+        cached.name = "OriginalSurvivorArt_tech_scale";
+        singleCache["tech_scale"] = cached;
+        return cached;
+    }
+
+    // 脚下接触阴影：椭圆径向衰减，纯白靠 SpriteRenderer.color 染成半透明黑。
+    // 侧视像素角色没有体积感，贴一块软阴影把它"按"在地面上，比悬空自然。
+    public static Sprite GroundShadow()
+    {
+        Sprite cached;
+        if (singleCache.TryGetValue("ground_shadow", out cached) && cached != null) return cached;
+        const int w = 64, h = 32;
+        Texture2D texture = NewMaskTexture("OriginalSurvivorArt_ground_shadow", w, h, FilterMode.Bilinear);
+        Color[] pixels = new Color[w * h];
+        for (int y = 0; y < h; y++)
+        {
+            for (int x = 0; x < w; x++)
+            {
+                float dx = (x - w * 0.5f) / (w * 0.5f);
+                float dy = (y - h * 0.5f) / (h * 0.5f);
+                float d = Mathf.Sqrt(dx * dx + dy * dy);
+                float a = Mathf.Clamp01(1f - d);
+                pixels[y * w + x] = new Color(1f, 1f, 1f, a * a);
+            }
+        }
+        texture.SetPixels(pixels);
+        texture.Apply();
+        cached = Sprite.Create(texture, new Rect(0f, 0f, w, h), new Vector2(0.5f, 0.5f), 32f);
+        cached.name = "OriginalSurvivorArt_ground_shadow";
+        singleCache["ground_shadow"] = cached;
+        return cached;
+    }
+
+    // 朝向罗盘弧：以 +X 为中心的一段圆环扇区，纯白靠 color 染单青。
+    // 环半径取得比角色半身高略大，绕角色中心旋转时任何朝向都不会被身体挡住，
+    // 读作贴在地面上、指向当前朝向的一抹柔光扫弧。
+    public static Sprite HeadingSweep()
+    {
+        Sprite cached;
+        if (singleCache.TryGetValue("heading_sweep", out cached) && cached != null) return cached;
+        const int size = 120;
+        const float center = size * 0.5f;
+        const float innerR = 48f, outerR = 59f;
+        const float halfSpan = 35f * Mathf.Deg2Rad;
+        Texture2D texture = NewMaskTexture("OriginalSurvivorArt_heading_sweep", size, size, FilterMode.Bilinear);
+        Color[] pixels = new Color[size * size];
+        for (int y = 0; y < size; y++)
+        {
+            for (int x = 0; x < size; x++)
+            {
+                float dx = x - center, dy = y - center;
+                float r = Mathf.Sqrt(dx * dx + dy * dy);
+                if (r < innerR - 2f || r > outerR + 2f) continue;
+                float ang = Mathf.Atan2(dy, dx);
+                if (Mathf.Abs(ang) > halfSpan + 0.12f) continue;
+                float radial = Mathf.Clamp01((r - (innerR - 2f)) / 3f) * Mathf.Clamp01(((outerR + 2f) - r) / 3f);
+                float angular = Mathf.Clamp01((halfSpan + 0.12f - Mathf.Abs(ang)) / 0.12f);
+                float a = radial * angular;
+                if (a > 0f) pixels[y * size + x] = new Color(1f, 1f, 1f, a);
+            }
+        }
+        texture.SetPixels(pixels);
+        texture.Apply();
+        cached = Sprite.Create(texture, new Rect(0f, 0f, size, size), new Vector2(0.5f, 0.5f), 54f);
+        cached.name = "OriginalSurvivorArt_heading_sweep";
+        singleCache["heading_sweep"] = cached;
+        return cached;
+    }
+
+    // 磨砂玻璃噪点：128x128 随机灰度，alpha 只有 0.055。
+    // 之前给到 0.16，叠在深色卡体上直接变成电视雪花，文字全糊掉了——磨砂要"几乎看不见"才像玻璃。
+    public static Sprite FrostedNoise()
+    {
+        Sprite cached;
+        if (singleCache.TryGetValue("frosted_noise", out cached) && cached != null) return cached;
+        const int size = 128;
+        Texture2D texture = new Texture2D(size, size, TextureFormat.RGBA32, false);
+        texture.name = "OriginalSurvivorArt_frosted_noise";
+        texture.filterMode = FilterMode.Bilinear;
+        texture.wrapMode = TextureWrapMode.Repeat;
+        Color[] pixels = new Color[size * size];
+        System.Random rng = new System.Random(42); // 固定种子，保证每次一样
+        for (int i = 0; i < pixels.Length; i++)
+        {
+            float v = (float)rng.NextDouble();
+            pixels[i] = new Color(v, v, v, 0.055f);
+        }
+        texture.SetPixels(pixels);
+        texture.Apply();
+        cached = Sprite.Create(texture, new Rect(0f, 0f, size, size), new Vector2(0.5f, 0.5f), size);
+        cached.name = "OriginalSurvivorArt_frosted_noise";
+        singleCache["frosted_noise"] = cached;
+        return cached;
+    }
+
+    // 玻璃受光：上亮下暗的竖向渐变。之前是中心径向高光，叠在深色卡上等于在文字区打了一束手电。
+    public static Sprite SubtleGradient()
+    {
+        Sprite cached;
+        if (singleCache.TryGetValue("subtle_gradient", out cached) && cached != null) return cached;
+        const int size = 128;
+        Texture2D texture = new Texture2D(size, size, TextureFormat.RGBA32, false);
+        texture.name = "OriginalSurvivorArt_subtle_gradient";
+        texture.filterMode = FilterMode.Bilinear;
+        texture.wrapMode = TextureWrapMode.Clamp;
+        Color[] pixels = new Color[size * size];
+        for (int y = 0; y < size; y++)
+        {
+            // alpha 必须是半透明：写死 1 会把卡体颜色整个盖掉，改底色完全看不出效果。
+            float t = y / (size - 1f);
+            float brightness = Mathf.Lerp(0.35f, 0.90f, t);
+            for (int x = 0; x < size; x++) pixels[y * size + x] = new Color(brightness, brightness, brightness, 0.12f);
+        }
+        texture.SetPixels(pixels);
+        texture.Apply();
+        cached = Sprite.Create(texture, new Rect(0f, 0f, size, size), new Vector2(0.5f, 0.5f), size);
+        cached.name = "OriginalSurvivorArt_subtle_gradient";
+        singleCache["subtle_gradient"] = cached;
+        return cached;
+    }
+
+    // 进度条填充：上缘一道高光 + 自上而下的明度衰减，替代原来那块纯平涂的圆角条。
+    // 灰度值会和 Image.color 相乘，所以这里只画亮度关系，颜色由调用方给。
+    public static Sprite BarFill()
+    {
+        Sprite cached;
+        if (singleCache.TryGetValue("bar_fill", out cached) && cached != null) return cached;
+        const int w = 8, h = 64;
+        Texture2D texture = new Texture2D(w, h, TextureFormat.RGBA32, false);
+        texture.name = "OriginalSurvivorArt_bar_fill";
+        texture.filterMode = FilterMode.Bilinear;
+        texture.wrapMode = TextureWrapMode.Clamp;
+        Color[] pixels = new Color[w * h];
+        for (int y = 0; y < h; y++)
+        {
+            // y 从底往上；顶部 3 像素是高光带，下面线性压暗到 0.62
+            float v = y >= h - 3 ? 1f : Mathf.Lerp(0.62f, 0.90f, y / (h - 4f));
+            for (int x = 0; x < w; x++) pixels[y * w + x] = new Color(v, v, v, 1f);
+        }
+        texture.SetPixels(pixels);
+        texture.Apply();
+        cached = Sprite.Create(texture, new Rect(0f, 0f, w, h), new Vector2(0.5f, 0.5f), 64f);
+        cached.name = "OriginalSurvivorArt_bar_fill";
+        singleCache["bar_fill"] = cached;
+        return cached;
+    }
+
+    // ============ 粗野主义构件 ============
+    // 全部按目标矩形 1:1 生成像素，并用 Image.Type.Simple 铺满：
+    // 之前 9-slice 的 DiagonalFrame 在 300x486 的卡上会被拉成 47x76 的斜角，切角根本不是 45°。
+
+    // 斜切角矩形的内/外判定：inset 往里缩，切角线 x+y=chamfer 也随之内移 sqrt(2)*inset。
+    static bool InsideChamfer(float x, float y, int w, int h, float chamfer, float inset)
+    {
+        float lo = inset;
+        float hiX = w - 1f - inset;
+        float hiY = h - 1f - inset;
+        if (x < lo || y < lo || x > hiX || y > hiY) return false;
+        float cut = chamfer - inset * 1.41421356f;
+        if (cut <= 0f) return true;
+        if (x < lo + cut && y < lo + cut && (x - lo) + (y - lo) < cut) return false;
+        if (x > hiX - cut && y < lo + cut && (hiX - x) + (y - lo) < cut) return false;
+        if (x < lo + cut && y > hiY - cut && (x - lo) + (hiY - y) < cut) return false;
+        if (x > hiX - cut && y > hiY - cut && (hiX - x) + (hiY - y) < cut) return false;
+        return true;
+    }
+
+    // 卡体：实心切角面板，画成白色由 Image.color 染色。
+    public static Sprite ChamferFill(int width, int height, float chamfer)
+    {
+        width = Mathf.Max(4, width); height = Mathf.Max(4, height);
+        string key = "chamfer_fill_" + width + "x" + height + "_" + Mathf.RoundToInt(chamfer);
+        Sprite cached;
+        if (singleCache.TryGetValue(key, out cached) && cached != null) return cached;
+        Texture2D texture = NewMaskTexture(key, width, height, FilterMode.Point);
+        Color[] pixels = new Color[width * height];
+        Color fill = Color.white;
+        for (int y = 0; y < height; y++)
+            for (int x = 0; x < width; x++)
+                if (InsideChamfer(x, y, width, height, chamfer, 0f)) pixels[y * width + x] = fill;
+        texture.SetPixels(pixels);
+        texture.Apply();
+        cached = Sprite.Create(texture, new Rect(0f, 0f, width, height), new Vector2(0.5f, 0.5f), 1f);
+        cached.name = key;
+        singleCache[key] = cached;
+        return cached;
+    }
+
+    // 边框：只有轮廓那 thickness 像素有不透明内容，硬边无衰减。
+    public static Sprite ChamferLine(int width, int height, float chamfer, float thickness)
+    {
+        width = Mathf.Max(4, width); height = Mathf.Max(4, height);
+        string key = "chamfer_line_" + width + "x" + height + "_" + Mathf.RoundToInt(chamfer) + "_" + Mathf.RoundToInt(thickness * 10f);
+        Sprite cached;
+        if (singleCache.TryGetValue(key, out cached) && cached != null) return cached;
+        Texture2D texture = NewMaskTexture(key, width, height, FilterMode.Point);
+        Color[] pixels = new Color[width * height];
+        for (int y = 0; y < height; y++)
+        {
+            for (int x = 0; x < width; x++)
+            {
+                if (!InsideChamfer(x, y, width, height, chamfer, 0f)) continue;
+                if (InsideChamfer(x, y, width, height, chamfer, thickness)) continue;
+                pixels[y * width + x] = Color.white;
+            }
+        }
+        texture.SetPixels(pixels);
+        texture.Apply();
+        cached = Sprite.Create(texture, new Rect(0f, 0f, width, height), new Vector2(0.5f, 0.5f), 1f);
+        cached.name = key;
+        singleCache[key] = cached;
+        return cached;
+    }
+
+    // 几何网格：32px 一格、1px 硬线。ppu=1 让 Image.Type.Tiled 一格正好铺 32 像素。
+    public static Sprite GridField()
+    {
+        Sprite cached;
+        if (singleCache.TryGetValue("grid_field", out cached) && cached != null) return cached;
+        const int size = 32;
+        Texture2D texture = NewMaskTexture("OriginalSurvivorArt_grid_field", size, size, FilterMode.Point);
+        Color[] pixels = new Color[size * size];
+        Color line = Color.white;
+        for (int i = 0; i < size; i++)
+        {
+            pixels[i] = line;          // 横线只画下边，平铺后正好每 32px 一条
+            pixels[i * size] = line;   // 竖线只画左边
+        }
+        texture.SetPixels(pixels);
+        texture.Apply();
+        cached = Sprite.Create(texture, new Rect(0f, 0f, size, size), new Vector2(0.5f, 0.5f), 1f);
+        cached.name = "OriginalSurvivorArt_grid_field";
+        singleCache["grid_field"] = cached;
+        return cached;
+    }
+
+    // 警示斜纹：16px 一个周期、45°、条纹占 6/16。颜色由调用方给，方便和强调色统一。
+    public static Sprite HazardStripes()
+    {
+        Sprite cached;
+        if (singleCache.TryGetValue("hazard_stripes", out cached) && cached != null) return cached;
+        const int size = 16;
+        Texture2D texture = NewMaskTexture("OriginalSurvivorArt_hazard_stripes", size, size, FilterMode.Point);
+        Color[] pixels = new Color[size * size];
+        for (int y = 0; y < size; y++)
+            for (int x = 0; x < size; x++)
+                pixels[y * size + x] = ((x + y) % size) < 6 ? Color.white : Color.clear;
+        texture.SetPixels(pixels);
+        texture.Apply();
+        cached = Sprite.Create(texture, new Rect(0f, 0f, size, size), new Vector2(0.5f, 0.5f), 1f);
+        cached.name = "OriginalSurvivorArt_hazard_stripes";
+        singleCache["hazard_stripes"] = cached;
+        return cached;
+    }
+
+    // 技术条码：同一个 seed 永远同一串条纹，当技能编号的视觉指纹用。
+    public static Sprite Barcode(int seed)
+    {
+        string key = "barcode_" + seed;
+        Sprite cached;
+        if (singleCache.TryGetValue(key, out cached) && cached != null) return cached;
+        const int width = 96, height = 14;
+        Texture2D texture = NewMaskTexture("OriginalSurvivorArt_" + key, width, height, FilterMode.Point);
+        Color[] pixels = new Color[width * height];
+        System.Random rng = new System.Random(seed == 0 ? 7 : seed);
+        int x = 0;
+        bool ink = true;
+        while (x < width)
+        {
+            int run = ink ? 1 + rng.Next(3) : 1 + rng.Next(2);
+            for (int b = 0; b < run && x < width; b++, x++)
+            {
+                if (!ink) continue;
+                for (int y = 0; y < height; y++) pixels[y * width + x] = Color.white;
+            }
+            ink = !ink;
+        }
+        texture.SetPixels(pixels);
+        texture.Apply();
+        cached = Sprite.Create(texture, new Rect(0f, 0f, width, height), new Vector2(0.5f, 0.5f), 1f);
+        cached.name = "OriginalSurvivorArt_" + key;
+        singleCache[key] = cached;
+        return cached;
+    }
+
+    static Texture2D NewMaskTexture(string name, int width, int height, FilterMode filter)
+    {
+        Texture2D texture = new Texture2D(width, height, TextureFormat.RGBA32, false);
+        texture.name = name;
+        texture.filterMode = filter;
+        texture.wrapMode = TextureWrapMode.Clamp;
+        return texture;
     }
 
     static Sprite MakeSprite(string key, string styleKey, int frame)
