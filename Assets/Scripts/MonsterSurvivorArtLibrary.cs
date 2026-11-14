@@ -47,9 +47,24 @@ public static class MonsterSurvivorArtLibrary
         return frames == null || frames.Length == 0 ? null : frames[0];
     }
 
-    // 美术组条带的切法。帧数/步长/锚点必须逐张写死：条带由 tools/repack_sheet.py
-    // 按内容重切回填过，每姿以躯干列对齐到格子中心，所以 pivot 统一 0.5；
-    // 攻击帧的刀光比走路宽，步长单独给 100，等宽切走路会切出半张空帧。
+    // 抠出的挥砍月牙：白色形状+alpha，ppu=帧高使 scale 1 时世界高 1，运行时按角色色 tint。
+    public static Sprite LoadSlash()
+    {
+        Sprite cached;
+        if (singleCache.TryGetValue("doctor_slash", out cached) && cached != null) return cached;
+        Texture2D tex = Resources.Load<Texture2D>("doctor_slash");
+        if (tex == null) return null;
+        tex.filterMode = FilterMode.Bilinear;
+        cached = Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height),
+            new Vector2(0.5f, 0.5f), tex.height);
+        cached.name = "doctor_slash";
+        singleCache["doctor_slash"] = cached;
+        return cached;
+    }
+
+    // 美术组条带的切法。帧数/步长必须逐张写死：条带由 tools/repack_sheet.py
+    // 按内容重切回填过，每姿以躯干列对齐到格子中心，所以 pivot 统一 0.5。
+    // 刀光已抠成独立 doctor_slash 特效，攻击条带不再比走路宽，步长同 75。
     struct SheetSpec
     {
         public readonly int frames;
@@ -64,7 +79,7 @@ public static class MonsterSurvivorArtLibrary
     static readonly Dictionary<string, SheetSpec> sheetSpecs = new Dictionary<string, SheetSpec>
     {
         { "character_doctor", new SheetSpec(5, 75, 0.5f) },
-        { "character_doctor_attack", new SheetSpec(5, 84, 0.5f) },
+        { "character_doctor_attack", new SheetSpec(5, 75, 0.5f) },
     };
 
     // 真实导入的序列图优先于程序化占位，美术素材到位就直接顶掉生成图。
@@ -190,23 +205,41 @@ public static class MonsterSurvivorArtLibrary
     {
         string style = role == CharacterRole.Nurse ? "character_nurse" :
             (role == CharacterRole.Pharmacist ? "character_pharmacist" : "character_doctor");
-        ApplyCharacterFrames(player, style, 1.65f, 5f);
+        ApplyCharacterFrames(player, style, 2.0f, 5f, true);
         // 攻击条带目前只有医生出了素材，其余角色 Play("attack") 会静默跳过。
         if (role != CharacterRole.Doctor || player == null) return;
-        MonsterSurvivorSpriteAnimator animator = player.GetComponent<MonsterSurvivorSpriteAnimator>();
+        MonsterSurvivorSpriteAnimator animator = player.GetComponentInChildren<MonsterSurvivorSpriteAnimator>();
         if (animator == null) return;
         animator.SetClip("attack", LoadFrames("character_doctor_attack"), 12f, false);
     }
 
+    // 根节点缩放决定碰撞体/护盾/轨道的世界尺寸，必须保持旧值以免难度变化；
+    // 视觉放大只加在子节点上，二者解耦。
+    const float ColliderBaseHeight = 1.65f;
+
     // worldHeight 是整张帧在世界上占多高，不是缩放倍数：
     // 美术组的条带是 64px 高、程序化占位是 96px 高，用固定倍数缩放会让真素材
     // 一换上去就小一圈。按帧高归一以后，两种来源的视觉尺寸一致。
-    static void ApplyCharacterFrames(GameObject player, string style, float worldHeight, float frameRate)
+    static void ApplyCharacterFrames(GameObject player, string style, float worldHeight, float frameRate, bool childVisual = false)
     {
         if (player == null) return;
-        SpriteRenderer renderer = player.GetComponent<SpriteRenderer>();
-        if (renderer == null) renderer = player.AddComponent<SpriteRenderer>();
         Sprite[] frames = LoadFrames(style);
+        Transform visualRoot = player.transform;
+        if (childVisual)
+        {
+            Transform existing = player.transform.Find("Visual");
+            if (existing == null)
+            {
+                GameObject visualObj = new GameObject("Visual");
+                visualObj.transform.SetParent(player.transform, false);
+                existing = visualObj.transform;
+            }
+            visualRoot = existing;
+            SpriteRenderer rootRenderer = player.GetComponent<SpriteRenderer>();
+            if (rootRenderer != null) UnityEngine.Object.Destroy(rootRenderer);
+        }
+        SpriteRenderer renderer = visualRoot.GetComponent<SpriteRenderer>();
+        if (renderer == null) renderer = visualRoot.gameObject.AddComponent<SpriteRenderer>();
         if (frames == null || frames.Length == 0 || frames[0] == null)
         {
             renderer.enabled = true;
@@ -217,10 +250,18 @@ public static class MonsterSurvivorArtLibrary
         renderer.color = Color.white;
         renderer.sortingOrder = 5;
         float bounds = frames[0].bounds.size.y;
-        player.transform.localScale = Vector3.one *
-            (bounds > 0.0001f ? worldHeight / bounds : worldHeight);
-        MonsterSurvivorSpriteAnimator animator = player.GetComponent<MonsterSurvivorSpriteAnimator>();
-        if (animator == null) animator = player.AddComponent<MonsterSurvivorSpriteAnimator>();
+        float unit = bounds > 0.0001f ? 1f / bounds : 1f;
+        if (childVisual)
+        {
+            player.transform.localScale = Vector3.one * (ColliderBaseHeight * unit);
+            visualRoot.localScale = Vector3.one * (worldHeight / ColliderBaseHeight);
+        }
+        else
+        {
+            player.transform.localScale = Vector3.one * (worldHeight * unit);
+        }
+        MonsterSurvivorSpriteAnimator animator = visualRoot.GetComponent<MonsterSurvivorSpriteAnimator>();
+        if (animator == null) animator = visualRoot.gameObject.AddComponent<MonsterSurvivorSpriteAnimator>();
         animator.SetFrames(frames, frameRate);
     }
 

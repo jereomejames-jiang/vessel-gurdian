@@ -24,9 +24,8 @@ public class CharacterAttackEffect : MonoBehaviour
     public bool scissors;
     public bool ripple;
     public bool retired;
-    public Mesh mesh;
-    public MeshRenderer meshRenderer;
     public SpriteRenderer spriteRenderer;
+    public SpriteRenderer swoosh;
     public List<LineRenderer> lines = new List<LineRenderer>(3);
     public Color color;
     public static Sprite whiteSprite;
@@ -71,7 +70,7 @@ public class CharacterAttackEffect : MonoBehaviour
         EnsureEffectMaterial();
         if (effectMaterial == null)
         {
-            SpriteRenderer playerRenderer = owner.GetComponent<SpriteRenderer>();
+            SpriteRenderer playerRenderer = owner.GetComponentInChildren<SpriteRenderer>();
             if (playerRenderer != null) effectMaterial = playerRenderer.sharedMaterial;
             if (effectMaterial == null)
             {
@@ -275,13 +274,26 @@ public class CharacterAttackEffect : MonoBehaviour
         {
             if (scissors)
             {
-                for (int i = 1; i < lines.Count; i++)
+                for (int i = 0; i < lines.Count; i++)
                 {
-                    float sign = i == 1 ? -1f : 1f;
+                    float sign = i == 0 ? -1f : 1f;
                     Vector2 blade = Quaternion.Euler(0f, 0f, sign * angle * 0.5f * (1f - t)) * direction;
                     lines[i].SetPosition(0, origin);
                     lines[i].SetPosition(1, origin + (Vector3)(blade * radius));
                 }
+            }
+            else if (swoosh != null)
+            {
+                // 月牙长轴贴扇区外弧切向、凹面朝向玩家，从 -angle/2 扫到 +angle/2。
+                float lead = -angle * 0.5f + angle * t;
+                Vector2 ray = Quaternion.Euler(0f, 0f, lead) * direction;
+                float arcLen = radius * angle * Mathf.Deg2Rad;
+                swoosh.transform.position = origin + (Vector3)(ray * radius * 0.82f);
+                swoosh.transform.rotation = Quaternion.Euler(0f, 0f,
+                    Mathf.Atan2(ray.y, ray.x) * Mathf.Rad2Deg + 180f);
+                swoosh.transform.localScale = new Vector3(arcLen * 0.34f, arcLen * 0.6f, 1f);
+                Color c = color; c.a = Mathf.Sin(Mathf.Clamp01(t) * Mathf.PI) * 0.85f;
+                swoosh.color = c;
             }
         }
         if (elapsed >= lifetime) Retire();
@@ -349,38 +361,22 @@ public class CharacterAttackEffect : MonoBehaviour
 
     public void DrawSector()
     {
-        const int segments = 28;
-        Vector3[] vertices = new Vector3[segments + 2];
-        Color[] colors = new Color[vertices.Length];
-        int[] triangles = new int[segments * 3];
-        LineRenderer edge = NewLine(0.12f);
-        edge.positionCount = segments + 1;
-        for (int i = 0; i <= segments; i++)
-        {
-            Vector2 ray = Quaternion.Euler(0f, 0f, -angle * 0.5f + angle * i / segments) * direction;
-            vertices[i + 1] = ray * radius;
-            edge.SetPosition(i, origin + vertices[i + 1]);
-            if (i < segments) { triangles[i * 3] = 0; triangles[i * 3 + 1] = i + 2; triangles[i * 3 + 2] = i + 1; }
-        }
-        colors[0] = new Color(color.r, color.g, color.b, 0.35f);
-        for (int i = 1; i < colors.Length; i++) colors[i] = new Color(color.r, color.g, color.b, 0.18f);
-        mesh = new Mesh { name = "ElectroknifeFan" };
-        mesh.vertices = vertices;
-        mesh.triangles = triangles;
-        mesh.colors = colors;
-        mesh.RecalculateBounds();
-        gameObject.AddComponent<MeshFilter>().sharedMesh = mesh;
-        meshRenderer = gameObject.AddComponent<MeshRenderer>();
-        if (effectMaterial != null)
-            meshRenderer.sharedMaterial = effectMaterial;
-        else
-            Debug.LogError("[CharacterAttackEffect] Cannot assign material to sector mesh!");
-        meshRenderer.sortingOrder = 7;
         if (scissors)
         {
             NewLine(0.18f).positionCount = 2;
             NewLine(0.18f).positionCount = 2;
+            return;
         }
+        // 挥刀光带：抠出的月牙贴图沿判定扇区扫过，所见即所伤；不再叠程序化扇形/外缘弧。
+        Sprite slash = MonsterSurvivorArtLibrary.LoadSlash();
+        if (slash == null) return;
+        GameObject swooshObj = new GameObject("BladeSwoosh");
+        swooshObj.transform.SetParent(transform, false);
+        swoosh = swooshObj.AddComponent<SpriteRenderer>();
+        swoosh.sprite = slash;
+        if (effectMaterial != null) swoosh.sharedMaterial = effectMaterial;
+        swoosh.sortingOrder = 8;
+        swoosh.color = new Color(color.r, color.g, color.b, 0f);
     }
 
     public void AddSprite()
@@ -407,6 +403,4 @@ public class CharacterAttackEffect : MonoBehaviour
         gameObject.SetActive(false);
         Destroy(gameObject);
     }
-
-    public void OnDestroy() { if (mesh != null) Destroy(mesh); }
 }

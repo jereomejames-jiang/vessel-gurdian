@@ -142,7 +142,7 @@ public class CharacterCombat : MonoBehaviour
 
     MonsterSurvivorSpriteAnimator Animator()
     {
-        if (spriteAnimator == null) spriteAnimator = GetComponent<MonsterSurvivorSpriteAnimator>();
+        if (spriteAnimator == null) spriteAnimator = GetComponentInChildren<MonsterSurvivorSpriteAnimator>();
         return spriteAnimator;
     }
 
@@ -193,7 +193,7 @@ public class CharacterCombat : MonoBehaviour
         if (mat == null)
         {
             // The player's own sprite material always exists and is safe for LineRenderer.
-            SpriteRenderer selfRenderer = GetComponent<SpriteRenderer>();
+            SpriteRenderer selfRenderer = GetComponentInChildren<SpriteRenderer>();
             if (selfRenderer != null) mat = selfRenderer.sharedMaterial;
         }
         if (membraneShield == null)

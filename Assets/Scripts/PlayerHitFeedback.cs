@@ -19,7 +19,7 @@ public class PlayerHitFeedback : MonoBehaviour
     void Start()
     {
         stats = GetComponent<PlayerStats>();
-        selfRenderer = GetComponent<SpriteRenderer>();
+        selfRenderer = GetComponentInChildren<SpriteRenderer>();
         if (selfRenderer != null) baseColor = selfRenderer.color;
         cameraFollow = FindAnyObjectByType<CameraFollow>();
         if (stats != null) stats.OnDamaged += HandleDamaged;
