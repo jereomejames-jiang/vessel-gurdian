@@ -22,7 +22,7 @@ public class CardRevealUI : MonoBehaviour
     public float flipTimer;
     public int previousLevel;
     public int nextLevel;
-    public Color frameAccent = new Color(0.62f, 0.74f, 0.84f, 1f);
+    public Color frameAccent = UITheme.Clinical;
     public float frontHold = 0.6f;
     public float flipDuration = 0.5f;
     public SkillCardDefinition activeCard;
@@ -93,12 +93,12 @@ public class CardRevealUI : MonoBehaviour
         Time.timeScale = 0f;
     }
 
-    // 与升级卡同一套粗野主义构件：切角黑底 + 1px 钢灰硬边，青色只留给文字强调。
-    static readonly Color RevealBody = new Color(0.055f, 0.071f, 0.094f, 0.96f);
-    static readonly Color RevealLine = new Color(0.431f, 0.498f, 0.569f, 0.70f);
-    static readonly Color RevealTitle = new Color(0.969f, 0.980f, 1.0f, 1f);
-    static readonly Color RevealBodyText = new Color(0.761f, 0.808f, 0.855f, 1f);
-    static readonly Color RevealCyan = new Color(0.0f, 0.82f, 0.92f, 1f);
+    // R3-07：死代码仅做令牌对齐（不接回翻牌流程），与暖炭体系同族。
+    static readonly Color RevealBody = UITheme.Overlay;
+    static readonly Color RevealLine = UITheme.LineCool;
+    static readonly Color RevealTitle = UITheme.TextPrimary;
+    static readonly Color RevealBodyText = UITheme.TextMuted;
+    static readonly Color RevealCyan = UITheme.Clinical;
 
     void LayoutRevealCard()
     {
@@ -219,7 +219,7 @@ public class CardRevealUI : MonoBehaviour
             educationText.fontSize = 15;
             educationText.font = RuntimeFont.GetTitle();
             educationText.alignment = TextAnchor.MiddleCenter;
-            educationText.color = new Color(0.92f, 0.22f, 0.18f, 1f); // 警示红：功能性颜色，不参与单青强调体系
+            educationText.color = UITheme.Danger; // 警示语义色，令牌统一在 UITheme
         }
     }
 

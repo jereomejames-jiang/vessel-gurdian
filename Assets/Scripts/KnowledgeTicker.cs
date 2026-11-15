@@ -18,11 +18,11 @@ public class KnowledgeTicker : MonoBehaviour
     public float visibleTimer;
     public bool scrolling;
 
-    public float enterDuration = 0.38f;
-    public float exitDuration = 0.45f;
+    public float enterDuration = 0.30f;
+    public float exitDuration = 0.35f;
     public float minimumReadSeconds = 5f;
     public float scrollSpeed = 55f;
-    public float bottomMargin = 32f;
+    public float bottomMargin = 54f;
     public float panelWidth = 880f;
     public RectTransform plate;
     public RectTransform viewport;
@@ -114,7 +114,7 @@ public class KnowledgeTicker : MonoBehaviour
         overflowWidth = 0f;
         movingLabel.anchoredPosition = Vector2.zero;
         int chars = string.IsNullOrEmpty(notice.body) ? 0 : notice.body.Length;
-        activeHoldSeconds = Mathf.Clamp(chars * 0.18f, minimumReadSeconds, 13f);
+        activeHoldSeconds = Mathf.Clamp(chars * 0.16f, minimumReadSeconds, 12f);
     }
 
     public void ApplyAppearance()
@@ -124,12 +124,11 @@ public class KnowledgeTicker : MonoBehaviour
         float p = Mathf.Clamp01(elapsed / enter);
         float end = Mathf.Clamp01((elapsed - enter - activeHoldSeconds) / exit);
         float eased = 1f - Mathf.Pow(1f - p, 3f);
-        float pop = 1f + 2.4f * Mathf.Pow(p - 1f, 3f) + 1.4f * Mathf.Pow(p - 1f, 2f);
-        group.alpha = Mathf.SmoothStep(0f, 1f, p) * (1f - end);
+        group.alpha = eased * (1f - end) * (1f - end);
         plate.anchoredPosition = new Vector2(0f, bottomMargin - 24f * (1f - eased) - 12f * end);
-        plate.localScale = Vector3.one * (Mathf.LerpUnclamped(0.92f, 1f, pop) - 0.025f * end);
-        Color flashColor = flash.color;
-        flashColor.a = 0.24f * Mathf.Pow(1f - Mathf.Clamp01(elapsed / 0.85f), 2f);
+        plate.localScale = Vector3.one * Mathf.Lerp(0.98f, 1f, eased);
+        Color flashColor = UITheme.WarmSoft;
+        flashColor.a = 0.12f * Mathf.Pow(1f - Mathf.Clamp01(elapsed / 0.6f), 2f);
         flash.color = flashColor;
     }
 
@@ -171,20 +170,23 @@ public class KnowledgeTicker : MonoBehaviour
         badge.gameObject.AddComponent<CanvasRenderer>();
         emblem = badge.gameObject.AddComponent<KnowledgePlateGraphic>();
         emblem.medallion = true; emblem.raycastTarget = false;
-        Text seal = MakeText("SealLabel", badge, "知", 25, new Color(1f, 0.92f, 0.66f));
+        Text seal = MakeText("SealLabel", badge, "知", 25, UITheme.InkOnWarm);
+        seal.font = RuntimeFont.GetTitle();
         seal.alignment = TextAnchor.MiddleCenter;
         seal.rectTransform.anchorMin = seal.rectTransform.anchorMax = Vector2.one * 0.5f;
         seal.rectTransform.sizeDelta = new Vector2(50f, 60f);
 
-        skillTitle = MakeText("SkillTitle", plate, "", 24, new Color(1f, 0.86f, 0.52f));
-        categoryText = MakeText("Category", plate, "技能科普 · 现实医学", 17, new Color(0.8f, 0.68f, 0.47f));
+        skillTitle = MakeText("SkillTitle", plate, "", 24, UITheme.WarmSoft);
+        skillTitle.font = RuntimeFont.GetTitle();
+        categoryText = MakeText("Category", plate, "技能科普 · 现实医学", 15, UITheme.TextMuted);
         categoryText.alignment = TextAnchor.MiddleRight;
 
         viewport = MakeRect("ParchmentViewport", plate, new Vector2(750f, 84f), new Vector2(80f, 50f));
         viewport.anchorMin = viewport.anchorMax = new Vector2(0f, 0f);
         viewport.pivot = new Vector2(0f, 0.5f);
         viewport.gameObject.AddComponent<RectMask2D>();
-        label = MakeText("TickerText", viewport, "", 19, new Color(0.22f, 0.13f, 0.07f));
+        label = MakeText("TickerText", viewport, "", 18, UITheme.TextPrimary);
+        label.lineSpacing = 1.15f;
         movingLabel = label.rectTransform;
         label.alignment = TextAnchor.UpperLeft;
         label.horizontalOverflow = HorizontalWrapMode.Wrap;
@@ -195,7 +197,8 @@ public class KnowledgeTicker : MonoBehaviour
 
         RectTransform gleam = MakeRect("SelectionGlow", plate, new Vector2(panelWidth - 24f, 42f), new Vector2(0f, 140f));
         flash = gleam.gameObject.AddComponent<Image>();
-        flash.color = new Color(1f, 0.85f, 0.48f, 0f);
+        Color flashBase = UITheme.WarmSoft; flashBase.a = 0f;
+        flash.color = flashBase;
         flash.raycastTarget = false;
         LayoutPlate();
     }

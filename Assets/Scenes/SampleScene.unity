@@ -602,11 +602,11 @@ MonoBehaviour:
   elapsed: 0
   visibleTimer: 0
   scrolling: 0
-  enterDuration: 0.38
-  exitDuration: 0.45
+  enterDuration: 0.3
+  exitDuration: 0.35
   minimumReadSeconds: 5
   scrollSpeed: 55
-  bottomMargin: 32
+  bottomMargin: 54
   panelWidth: 880
   plate: {fileID: 0}
   viewport: {fileID: 0}

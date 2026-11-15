@@ -10,7 +10,7 @@ public class MainMenuBackground : MonoBehaviour
     public Transform playerTransform;
     public SpriteRenderer playerSprite;
     public InfiniteBrickBackground brickBackground;
-    public float scrollSpeed = 5f;
+    public float scrollSpeed = 2.5f;
     public float centerDuration = 1.5f;
     public Vector3 initialPosition = new Vector3(0f, 1.55f, 0f);
     public Vector3 centerPosition = Vector3.zero;
@@ -104,7 +104,7 @@ public class MainMenuBackground : MonoBehaviour
         {
             menuCamera.orthographic = true;
             menuCamera.orthographicSize = 7.2f;
-            menuCamera.backgroundColor = new Color(0.015f, 0.025f, 0.05f, 1f);
+            menuCamera.backgroundColor = UITheme.Deep;
         }
     }
 
@@ -120,18 +120,18 @@ public class MainMenuBackground : MonoBehaviour
         int level = Mathf.Clamp(PlayerPrefs.GetInt("VesselGuard.SelectedLevel", 1), 1, 3);
         if (level == 1)
         {
-            background.brickColor = new Color(0.16f, 0.075f, 0.12f, 1f);
-            background.mortarColor = new Color(0.035f, 0.018f, 0.035f, 1f);
+            background.brickColor = UITheme.Hex("#241A18");
+            background.mortarColor = UITheme.Hex("#120D0C");
         }
         else if (level == 2)
         {
-            background.brickColor = new Color(0.035f, 0.11f, 0.2f, 1f);
-            background.mortarColor = new Color(0.008f, 0.025f, 0.055f, 1f);
+            background.brickColor = UITheme.Hex("#18222B");
+            background.mortarColor = UITheme.Hex("#0D141B");
         }
         else
         {
-            background.brickColor = new Color(0.2f, 0.045f, 0.055f, 1f);
-            background.mortarColor = new Color(0.045f, 0.008f, 0.012f, 1f);
+            background.brickColor = UITheme.Hex("#2B1717");
+            background.mortarColor = UITheme.Hex("#150C0C");
         }
     }
 }

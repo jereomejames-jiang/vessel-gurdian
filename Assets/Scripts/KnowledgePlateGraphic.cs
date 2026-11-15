@@ -13,24 +13,26 @@ public class KnowledgePlateGraphic : Image
         Rect r = GetPixelAdjustedRect();
         if (medallion)
         {
-            Polygon(mesh, r, r.width * 0.48f, new Color(0.08f, 0.04f, 0.025f), new Color(0.08f, 0.04f, 0.025f));
-            Polygon(mesh, Inset(r, 3f), r.width * 0.44f, new Color(0.98f, 0.83f, 0.44f), new Color(0.46f, 0.28f, 0.09f));
-            Polygon(mesh, Inset(r, 8f), r.width * 0.36f, Color.Lerp(accent, Color.white, 0.3f), Color.Lerp(accent, Color.black, 0.5f));
+            Polygon(mesh, r, r.width * 0.48f, UITheme.HexA("#0A0806", 0.96f), UITheme.HexA("#0A0806", 0.96f));
+            Polygon(mesh, Inset(r, 3f), r.width * 0.44f, UITheme.WarmAccent, UITheme.Hex("#8A6B3F"));
+            // R2-04：勋章内盘降为 WarmAccent→WarmPress，不再是全 UI 最亮填充。
+            Polygon(mesh, Inset(r, 8f), r.width * 0.36f, UITheme.WarmAccent, UITheme.WarmPress);
             return;
         }
-        Polygon(mesh, r, 14f, new Color(0.065f, 0.025f, 0.015f, 0.96f), new Color(0.065f, 0.025f, 0.015f, 0.96f));
-        Polygon(mesh, Inset(r, 3f), 12f, new Color(0.98f, 0.82f, 0.46f), new Color(0.42f, 0.25f, 0.09f));
-        Polygon(mesh, Inset(r, 7f), 10f, new Color(0.29f, 0.16f, 0.09f), new Color(0.15f, 0.065f, 0.03f));
-        Polygon(mesh, Inset(r, 10f), 8f, new Color(0.97f, 0.88f, 0.69f), new Color(0.79f, 0.64f, 0.40f));
+        Polygon(mesh, r, 14f, UITheme.HexA("#0A0806", 0.96f), UITheme.HexA("#0A0806", 0.96f));
+        // R2-04：整环降为半透明细环，与模态 1px LineCool 同量级存在感（只改颜色实参，几何不动）。
+        Polygon(mesh, Inset(r, 3f), 12f, UITheme.HexA("#D9A05B", 0.45f), UITheme.HexA("#8A6B3F", 0.45f));
+        Polygon(mesh, Inset(r, 7f), 10f, UITheme.Hex("#241C15"), UITheme.Hex("#241C15"));
+        Polygon(mesh, Inset(r, 10f), 8f, UITheme.Hex("#2C241D"), UITheme.Hex("#2C241D"));
         Rect header = new Rect(r.xMin + 10f, r.center.y + 5f, r.width - 20f, r.height * 0.5f - 15f);
-        Polygon(mesh, header, 7f, new Color(0.21f, 0.12f, 0.105f), new Color(0.11f, 0.055f, 0.055f));
-        Quad(mesh, new Rect(r.xMin + 18f, r.center.y + 4f, r.width - 36f, 2f), new Color(0.83f, 0.61f, 0.27f));
+        Polygon(mesh, header, 7f, UITheme.Hex("#322A22"), UITheme.Hex("#2C241D"));
+        Quad(mesh, new Rect(r.xMin + 18f, r.center.y + 4f, r.width - 36f, 2f), UITheme.HexA("#D9A05B", 0.6f));
         for (int side = -1; side <= 1; side += 2)
         {
             float x = side < 0 ? r.xMin + 20f : r.xMax - 26f;
             for (int i = 0; i < 3; i++)
                 Polygon(mesh, new Rect(x, r.yMin + 19f + i * 6f, 6f, 4f), 2f,
-                    new Color(0.65f, 0.43f, 0.16f), new Color(0.65f, 0.43f, 0.16f));
+                    UITheme.Hex("#8A6B3F"), UITheme.Hex("#8A6B3F"));
         }
     }
 

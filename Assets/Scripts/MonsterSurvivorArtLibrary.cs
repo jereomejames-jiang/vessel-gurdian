@@ -695,7 +695,7 @@ public static class MonsterSurvivorArtLibrary
         return cached;
     }
 
-    // 几何网格：32px 一格、1px 硬线。ppu=1 让 Image.Type.Tiled 一格正好铺 32 像素。
+    // 几何网格：32px 一格、1px 硬线。ppu 与 Canvas referencePixelsPerUnit(100) 对齐，Tiled 一格才真是 32 参考像素。
     public static Sprite GridField()
     {
         Sprite cached;
@@ -711,9 +711,33 @@ public static class MonsterSurvivorArtLibrary
         }
         texture.SetPixels(pixels);
         texture.Apply();
-        cached = Sprite.Create(texture, new Rect(0f, 0f, size, size), new Vector2(0.5f, 0.5f), 1f);
+        cached = Sprite.Create(texture, new Rect(0f, 0f, size, size), new Vector2(0.5f, 0.5f), 100f);
         cached.name = "OriginalSurvivorArt_grid_field";
         singleCache["grid_field"] = cached;
+        return cached;
+    }
+
+    // 滚动边缘指示（R2-02）：8×32 白色 alpha 渐变，flip=false 顶 1→底 0，flip=true 反向。
+    // 灰度/alpha 与 Image.color 相乘，颜色由调用方给；按 key 缓存、仅布局期调用。
+    public static Sprite EdgeFade(bool flip)
+    {
+        string key = flip ? "edge_fade_flip" : "edge_fade";
+        Sprite cached;
+        if (singleCache.TryGetValue(key, out cached) && cached != null) return cached;
+        const int w = 8, h = 32;
+        Texture2D texture = NewMaskTexture("OriginalSurvivorArt_" + key, w, h, FilterMode.Bilinear);
+        Color[] pixels = new Color[w * h];
+        for (int y = 0; y < h; y++)
+        {
+            float t = y / (h - 1f); // y 自底向上
+            float a = flip ? 1f - t : t;
+            for (int x = 0; x < w; x++) pixels[y * w + x] = new Color(1f, 1f, 1f, a);
+        }
+        texture.SetPixels(pixels);
+        texture.Apply();
+        cached = Sprite.Create(texture, new Rect(0f, 0f, w, h), new Vector2(0.5f, 0.5f), 32f);
+        cached.name = "OriginalSurvivorArt_" + key;
+        singleCache[key] = cached;
         return cached;
     }
 
