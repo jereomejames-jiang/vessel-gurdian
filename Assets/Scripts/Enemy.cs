@@ -16,7 +16,11 @@ public class Enemy : MonoBehaviour
     public bool deathPending;
     public float slowMultiplier = 1f;
     public float slowUntil;
-    public float EffectiveMoveSpeed => moveSpeed * (Time.time < slowUntil ? slowMultiplier : 1f);
+    // 迅捷拾取物（v3 §9）：全场敌人减速 30%，10s。
+    public static float globalSlowMultiplier = 1f;
+    public static float globalSlowUntil;
+    public float EffectiveMoveSpeed => moveSpeed * (Time.time < slowUntil ? slowMultiplier : 1f) *
+        (Time.time < globalSlowUntil ? globalSlowMultiplier : 1f);
     public event Action<Enemy> OnDied;
 
     public int currentHP;
@@ -27,9 +31,12 @@ public class Enemy : MonoBehaviour
     public float hitFlashTimer;
     public float hitFlashDuration = 0.08f;
     
-    // 静脉淤血：接触时叠加淤滞
+    // 静脉淤血/动脉栓塞：接触时叠加淤滞与减速（§2.2/§3.2「靠近后叠加减速与淤滞」）。
     public bool stasisOnContact;
     public int stasisStacksOnContact = 1;
+    // R1-02：接触减速复用 PlayerController.ApplyTimedSlow 通道；判定用现有接触碰撞半径（slow_radius 键已删，F60）。
+    public float contactSlowMult = 0.6f;
+    public float contactSlowDuration = 2f;
     
     // 纤维蛋白网：死亡时创建减速区
     public bool createNetOnDeath;
@@ -52,6 +59,19 @@ public class Enemy : MonoBehaviour
     public bool isTargetBlocker;
     public float auraRadius = 3f;
     public float auraDamageReduction = 0.2f;
+
+    // 高压飞沫（v3 §3.2）：从左往右批次弹幕，固定方向匀速，不索敌。
+    public bool isPressureSpray;
+    public Vector2 sprayDirection = Vector2.right;
+    // 剥落栓子（v3 §3.2）：身后留下持续减速的地面痕迹。
+    public bool dropsTrail;
+    public float trailInterval = 0.5f;
+    public float trailRadius = 0.8f;
+    public float trailSlow = 0.6f;
+    public float trailDuration = 3f;
+    float trailTimer;
+    // Boss 与 Boss 召唤结节不参与拾取物掉落。
+    public bool noPickupDrop;
 
     void Awake()
     {
@@ -110,6 +130,14 @@ public class Enemy : MonoBehaviour
 
         if (player == null) return;
 
+        if (isPressureSpray)
+        {
+            Vector2 sprayVelocity = sprayDirection.normalized * EffectiveMoveSpeed;
+            if (rb != null) rb.MovePosition(rb.position + sprayVelocity * Time.fixedDeltaTime);
+            else transform.position += (Vector3)(sprayVelocity * Time.fixedDeltaTime);
+            return;
+        }
+
         Vector3 direction = (player.position - transform.position).normalized;
         Vector2 velocity = (Vector2)direction * EffectiveMoveSpeed + ComputeSeparation();
         if (rb != null) rb.MovePosition(rb.position + velocity * Time.fixedDeltaTime);
@@ -136,6 +164,27 @@ public class Enemy : MonoBehaviour
             {
                 cloneTimer = 0f;
                 if (CountPrimitiveCells() < cloneMaxCount) ClonePrimitiveCell();
+            }
+        }
+
+        if (currentHP <= 0 || deathPending) return;
+
+        // 高压飞沫：飞出战场后移除（批次弹幕不回头）。
+        if (isPressureSpray && player != null &&
+            (transform.position - player.position).sqrMagnitude > 32f * 32f)
+        {
+            Destroy(gameObject);
+            return;
+        }
+
+        // 剥落栓子：身后留下持续减速痕迹。
+        if (dropsTrail)
+        {
+            trailTimer -= Time.deltaTime;
+            if (trailTimer <= 0f)
+            {
+                trailTimer = trailInterval;
+                VesselHazardZone.Create(transform.position, trailRadius, 0, trailSlow, null, trailDuration, 0.5f);
             }
         }
     }
@@ -177,10 +226,12 @@ public class Enemy : MonoBehaviour
         if (stats != null && currentHP > 0 && !deathPending)
         {
             stats.TakeDamage(contactDamage);
-            // 静脉淤血：接触时叠加淤滞层数
+            // 静脉淤血/动脉栓塞：接触时叠加淤滞层数与短暂减速（R1-02）。
             if (stasisOnContact)
             {
                 stats.AddStasisStack(stasisStacksOnContact);
+                PlayerController controller = stats.GetComponent<PlayerController>();
+                if (controller != null) controller.ApplyTimedSlow(contactSlowMult, contactSlowDuration);
             }
         }
     }
@@ -253,6 +304,9 @@ public class Enemy : MonoBehaviour
             ExperienceOrb orb = orbObject.GetComponent<ExperienceOrb>();
             if (orb != null) orb.xpValue = Mathf.Max(1, xpValue);
         }
+        // 特殊拾取物（v3 §9）：血包/迅捷/磁铁。掉落概率未给数值→3% 并标旗。
+        if (!noPickupDrop && UnityEngine.Random.value < GameBalance.Get("pickup.drop_chance", 0.03f))
+            PickupItem.SpawnRandom(transform.position);
         Destroy(gameObject);
     }
 

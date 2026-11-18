@@ -8,7 +8,20 @@ public class Bullet : MonoBehaviour
     public bool hasHit;
     public int maxTargets = 1;
     public CharacterCombat source;
+    public bool pixelNeedle;
     [System.NonSerialized] public HashSet<Enemy> hitEnemies = new HashSet<Enemy>();
+    SpriteRenderer needleRenderer;
+    float needleTimer;
+
+    void Update()
+    {
+        if (!pixelNeedle || Time.timeScale <= 0f) return;
+        if (needleRenderer == null) needleRenderer = GetComponent<SpriteRenderer>();
+        if (needleRenderer == null) return;
+        needleTimer += Time.deltaTime;
+        needleRenderer.sprite = MonsterSurvivorArtLibrary.LoadVfx(
+            Mathf.FloorToInt(needleTimer / 0.08f) % 2 == 0 ? "vfx_needle_f0" : "vfx_needle_f1");
+    }
 
     void Awake()
     {

@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.SceneManagement;
@@ -329,10 +330,29 @@ public class UIManager : MonoBehaviour
             cardLevel.text = CardLevelLine(option);
             cardDesc.text = CardShortText(option);
             AttachOptionIcon(button, MonsterSurvivorArtLibrary.SkillIcon(option.type), accent);
-            StyleCard(button, CurrentLevel(option), (int)option.type);
+            StyleCard(button, CurrentLevel(option), (int)option.type, VesselSkillCatalog.MaxLevel(option.type));
             OrderCardChildren(button);
+            ApplyGoldGlow(button, GoldGlowFor(option));
         }
         StartChoicesMotion();
+        glowReveal = 0f;
+        if (glowRevealRoutine != null) StopCoroutine(glowRevealRoutine);
+        glowRevealRoutine = StartCoroutine(GlowReveal());
+    }
+
+    // 光晕不随卡体 CanvasGroup 淡入，需在卡片落定后再显现，避免淡入期间露出整块金色。
+    System.Collections.IEnumerator GlowReveal()
+    {
+        yield return new WaitForSecondsRealtime(UIMotion.CardIn + 2f * UIMotion.StaggerStep);
+        float t = 0f;
+        while (t < 0.25f)
+        {
+            t += Time.unscaledDeltaTime;
+            glowReveal = Mathf.Clamp01(t / 0.25f);
+            yield return null;
+        }
+        glowReveal = 1f;
+        glowRevealRoutine = null;
     }
 
     // T_ScrimIn + T_Stagger：暗场 0.16s 渐入，三卡间隔 0.06s 各自 0.24s 浮起（unscaled）。
@@ -404,7 +424,7 @@ public class UIManager : MonoBehaviour
     }
 
     // 温暖理性奖励卡：暖炭切角底 + 32px 硬网格 + 冷钢 1px 边 + 琥珀编号牌/等级条 + 暗琥珀斜纹。
-    public void StyleCard(Button button, int currentLevel, int skillSerial)
+    public void StyleCard(Button button, int currentLevel, int skillSerial, int maxLevel)
     {
         RectTransform cardRect = button.GetComponent<RectTransform>();
         // 中心锚点的卡，sizeDelta 就是真实像素尺寸；此时 rect 可能还是上一帧布局的旧值。
@@ -452,14 +472,15 @@ public class UIManager : MonoBehaviour
         Place(footer, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(content, 1f), new Vector2(0f, -(height - 68f)));
         footer.color = UITheme.LineCool;
 
-        // 三段等级条：filled 琥珀、满级苔绿，空槽冷钢压暗。
+        // 等级条：槽数=MaxLevel（主动3、被动/进化1）；filled 琥珀、满级苔绿，空槽冷钢压暗。
         for (int p = 0; p < 3; p++)
         {
             Image pip = EnsureImageChild(button.transform, "Pip" + p);
             Place(pip, new Vector2(0f, 1f), new Vector2(0f, 0.5f), new Vector2(28f, 6f),
                 new Vector2(CardInset + p * 34f, -(height - 58f)));
-            bool filled = p < Mathf.Clamp(currentLevel, 0, 3);
-            Color fillTone = currentLevel >= 3 ? UITheme.Success : UITheme.WarmAccent;
+            pip.gameObject.SetActive(p < maxLevel);
+            bool filled = p < Mathf.Clamp(currentLevel, 0, maxLevel);
+            Color fillTone = currentLevel >= maxLevel ? UITheme.Success : UITheme.WarmAccent;
             pip.color = filled ? new Color(fillTone.r, fillTone.g, fillTone.b, 0.95f)
                                : new Color(UITheme.LineCool.r, UITheme.LineCool.g, UITheme.LineCool.b, 0.35f);
         }
@@ -683,17 +704,177 @@ public class UIManager : MonoBehaviour
     public string CardLevelLine(UpgradeOption option)
     {
         int current = CurrentLevel(option);
+        int max = VesselSkillCatalog.MaxLevel(option.type);
+        if (VesselSkillCatalog.IsPassive(option.type))
+        {
+            if (current > 0) return "被动 · 已生效";
+            return UnlocksEvolution(option.type) ? "被动 · 选取后解锁进化" : "被动 · 选取后立即生效";
+        }
+        if (VesselSkillCatalog.IsEvolution(option.type))
+            return current > 0 ? "进化 · 已生效" : "进化 · 替换原技能效果";
         if (current <= 0) return "Lv 1";
-        if (current >= 3) return "Lv 3  MAX";
-        return "Lv " + current + " → " + Mathf.Clamp(current + 1, 1, 3);
+        if (current >= max) return "Lv " + max + "  MAX";
+        string line = "Lv " + current + " → " + Mathf.Clamp(current + 1, 1, max);
+        if (current + 1 >= max && PairedPassiveOwned(option.type)) line += " · 解锁进化";
+        return line;
+    }
+
+    // task2：选取即补满进化条件的被动卡（对应主动/基础攻击已满级、进化未拥有）。
+    bool UnlocksEvolution(UpgradeType passive)
+    {
+        if (playerSkillCollection == null) playerSkillCollection = FindAnyObjectByType<PlayerSkillCollection>();
+        CharacterCombat combat = FindAnyObjectByType<CharacterCombat>();
+        if (playerSkillCollection == null || combat == null) return false;
+        for (int i = 0; i < VesselSkillCatalog.Types.Length; i++)
+        {
+            UpgradeType evo = VesselSkillCatalog.Types[i];
+            if (!VesselSkillCatalog.IsEvolution(evo)) continue;
+            if (VesselSkillCatalog.PassiveForEvolution(evo) != passive) continue;
+            if (playerSkillCollection.GetLevel(evo) > 0) continue;
+            if (VesselSkillCatalog.EvolutionBaseReady(evo, playerSkillCollection, combat)) return true;
+        }
+        return false;
+    }
+
+    bool PairedPassiveOwned(UpgradeType active)
+    {
+        if (playerSkillCollection == null) playerSkillCollection = FindAnyObjectByType<PlayerSkillCollection>();
+        if (playerSkillCollection == null) return false;
+        for (int i = 0; i < VesselSkillCatalog.Types.Length; i++)
+        {
+            UpgradeType evo = VesselSkillCatalog.Types[i];
+            if (!VesselSkillCatalog.IsEvolution(evo)) continue;
+            if (VesselSkillCatalog.BaseActiveFor(evo) != active) continue;
+            if (playerSkillCollection.GetLevel(VesselSkillCatalog.PassiveForEvolution(evo)) > 0) return true;
+        }
+        return false;
+    }
+
+    // task2 金辉触发：选后满级的主动 / 进化卡本身 / 选取即补满进化条件的被动。
+    bool GoldGlowFor(UpgradeOption option)
+    {
+        UpgradeType t = option.type;
+        if (VesselSkillCatalog.IsEvolution(t)) return true;
+        if (VesselSkillCatalog.IsActiveSkill(t)) return CurrentLevel(option) + 1 >= VesselSkillCatalog.MaxLevel(t);
+        if (VesselSkillCatalog.IsPassive(t)) return UnlocksEvolution(t);
+        return false;
     }
 
     public string CardShortText(UpgradeOption option)
     {
-        string shortText = VesselSkillCatalog.IsVesselSkill(option.type)
-            ? VesselSkillCatalog.ShortDescriptionFor(option.type)
-            : option.description;
+        if (VesselSkillCatalog.IsActiveSkill(option.type))
+            return VesselSkillCatalog.LevelEffectFor(option.type, CurrentLevel(option) + 1);
+        if (VesselSkillCatalog.IsPassive(option.type))
+            return VesselSkillCatalog.DescriptionFor(option.type);
+        if (VesselSkillCatalog.IsEvolution(option.type))
+        {
+            string full = VesselSkillCatalog.DescriptionFor(option.type);
+            int cut = full.IndexOf('\n');
+            return cut > 0 ? full.Substring(0, cut) : full;
+        }
+        string shortText = option.description;
         return string.IsNullOrEmpty(shortText) ? "战斗强化" : shortText;
+    }
+
+    static Sprite goldGlowSprite;
+    readonly List<Image> activeGlows = new List<Image>();
+    Coroutine glowPulse;
+    Coroutine glowRevealRoutine;
+    float glowReveal = 1f;
+
+    // task2：暖金外发光。卡体是 button 自身 Image，子物体压在其上，故光晕做同级 sibling 插在卡前。
+    void ApplyGoldGlow(Button button, bool on)
+    {
+        Transform parent = button.transform.parent;
+        Transform existing = parent.Find("GoldGlow_" + button.name);
+        Transform frameTransform = button.transform.Find("CardFrame");
+        Image frame = frameTransform == null ? null : frameTransform.GetComponent<Image>();
+        if (!on)
+        {
+            if (existing != null) existing.gameObject.SetActive(false);
+            if (frame != null) frame.color = UITheme.LineCool;
+            return;
+        }
+        GameObject glowObject = existing == null
+            ? new GameObject("GoldGlow_" + button.name, typeof(RectTransform), typeof(Image))
+            : existing.gameObject;
+        glowObject.transform.SetParent(parent, false);
+        // 复用时光晕可能已排在卡前：再按卡的当前索引插入会把它推到卡体前面，露出整块金色。
+        int glowIndex = button.transform.GetSiblingIndex();
+        if (existing != null && existing.GetSiblingIndex() < glowIndex) glowIndex -= 1;
+        glowObject.transform.SetSiblingIndex(glowIndex);
+        Image glow = glowObject.GetComponent<Image>();
+        glow.sprite = GoldGlowSprite();
+        glow.type = Image.Type.Simple;
+        glow.raycastTarget = false;
+        RectTransform rect = glow.rectTransform;
+        RectTransform cardRect = button.GetComponent<RectTransform>();
+        rect.anchorMin = rect.anchorMax = cardRect.anchorMin;
+        rect.pivot = cardRect.pivot;
+        rect.sizeDelta = cardRect.sizeDelta + new Vector2(36f, 36f);
+        rect.anchoredPosition = cardRect.anchoredPosition;
+        glow.color = new Color(0.85f, 0.66f, 0.24f, 0.6f);
+        glowObject.SetActive(true);
+        if (frame != null) frame.color = new Color(0.85f, 0.66f, 0.24f, 0.95f);
+        if (!activeGlows.Contains(glow)) activeGlows.Add(glow);
+        if (glowPulse == null) glowPulse = StartCoroutine(GlowPulse());
+    }
+
+    // 选卡界面 timeScale=0，呼吸脉冲走 unscaled 时间。
+    System.Collections.IEnumerator GlowPulse()
+    {
+        float t = 0f;
+        while (activeGlows.Count > 0)
+        {
+            t += Time.unscaledDeltaTime;
+            float a = (0.45f + 0.25f * (0.5f + 0.5f * Mathf.Sin(t * 2.4f))) * glowReveal;
+            for (int i = activeGlows.Count - 1; i >= 0; i--)
+            {
+                Image g = activeGlows[i];
+                if (g == null || !g.gameObject.activeSelf) { activeGlows.RemoveAt(i); continue; }
+                Color c = g.color; c.a = a; g.color = c;
+            }
+            yield return null;
+        }
+        glowPulse = null;
+    }
+
+    void StopGoldGlow()
+    {
+        if (glowPulse != null) { StopCoroutine(glowPulse); glowPulse = null; }
+        if (glowRevealRoutine != null) { StopCoroutine(glowRevealRoutine); glowRevealRoutine = null; }
+        glowReveal = 1f;
+        activeGlows.Clear();
+        if (choiceButtons == null) return;
+        for (int i = 0; i < choiceButtons.Length; i++)
+            if (choiceButtons[i] != null) ApplyGoldGlow(choiceButtons[i], false);
+    }
+
+    static Sprite GoldGlowSprite()
+    {
+        if (goldGlowSprite != null) return goldGlowSprite;
+        int size = 128;
+        Texture2D texture = new Texture2D(size, size, TextureFormat.RGBA32, false);
+        texture.filterMode = FilterMode.Bilinear;
+        Color[] pixels = new Color[size * size];
+        for (int y = 0; y < size; y++)
+            for (int x = 0; x < size; x++)
+            {
+                float dx = (x + 0.5f) / size * 2f - 1f;
+                float dy = (y + 0.5f) / size * 2f - 1f;
+                // 圆角盒 SDF：晕紧贴卡边（卡占光晕盒约 0.88/0.92），向外 12% 半宽内柔衰到 0。
+                float qx = Mathf.Abs(dx) - 0.88f;
+                float qy = Mathf.Abs(dy) - 0.92f;
+                float dist = Mathf.Sqrt(Mathf.Max(qx, 0f) * Mathf.Max(qx, 0f) + Mathf.Max(qy, 0f) * Mathf.Max(qy, 0f))
+                    + Mathf.Min(Mathf.Max(qx, qy), 0f);
+                float a = Mathf.Clamp01(1f - dist / 0.12f);
+                pixels[y * size + x] = new Color(1f, 1f, 1f, a * a);
+            }
+        texture.SetPixels(pixels);
+        texture.Apply(false, true);
+        goldGlowSprite = Sprite.Create(texture, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), size);
+        goldGlowSprite.name = "GoldGlow";
+        return goldGlowSprite;
     }
 
     public void AttachOptionIcon(Button button, Sprite sprite, Color accent)
@@ -716,8 +897,10 @@ public class UIManager : MonoBehaviour
         iconObject.transform.SetParent(button.transform, false);
         Image image = iconObject.GetComponent<Image>();
         image.sprite = sprite;
-        // R2-11：图标暖压——先乘暖纸色，再叠 IconVeil 降饱和；绿十字→苔绿、蓝轮→钢青。
-        image.color = new Color(0.95f, 0.90f, 0.82f, 1f);
+        // task3 像素图标（skill_*）还原画像原色；旧通用图保留 R2-11 暖压。
+        bool pixelIcon = sprite.name.StartsWith("skill_");
+        image.color = pixelIcon ? Color.white : new Color(0.95f, 0.90f, 0.82f, 1f);
+        image.preserveAspect = true;
         image.raycastTarget = false;
         RectTransform rect = image.rectTransform;
         rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 1f);
@@ -727,6 +910,7 @@ public class UIManager : MonoBehaviour
         iconObject.SetActive(true);
         // veil 仅覆盖图标盒（sibling 在 icon 之后、文字之前），不压标题/描述对比。
         Image veil = EnsureImageChild(button.transform, "IconVeil");
+        veil.gameObject.SetActive(!pixelIcon);
         veil.sprite = null; veil.type = Image.Type.Simple;
         veil.color = UITheme.HexA("#221B16", 0.28f);
         veil.raycastTarget = false;
@@ -772,6 +956,7 @@ public class UIManager : MonoBehaviour
     public void HideChoices()
     {
         StopChoicesMotion();
+        StopGoldGlow();
         if (LevelUpPanel != null) LevelUpPanel.SetActive(false);
         if (!isPausedByMenu && pauseButton != null && (gameManager == null || !gameManager.gameEnded))
             pauseButton.gameObject.SetActive(true);
@@ -1191,10 +1376,26 @@ public class UIManager : MonoBehaviour
         }
     }
 
+    Image spasmActiveIcon;
+
     void ApplyGoldenHudLayout()
     {
         if (canvas == null) return;
         const float phi = 1.618034f;
+
+        // 技能25 触发指示：左上角图标，痉挛环生效期间常驻微脉冲（用户确认口径）。
+        if (spasmActiveIcon == null)
+        {
+            GameObject iconObj = new GameObject("SpasmActiveIcon");
+            iconObj.transform.SetParent(canvas.transform, false);
+            spasmActiveIcon = iconObj.AddComponent<Image>();
+            spasmActiveIcon.sprite = MonsterSurvivorArtLibrary.SkillIcon(UpgradeType.VascularSpasmRing);
+            spasmActiveIcon.preserveAspect = true;
+            spasmActiveIcon.raycastTarget = false;
+            iconObj.SetActive(false);
+        }
+        PlaceHudRect(spasmActiveIcon.rectTransform,
+            new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(24f, -72f), new Vector2(56f, 56f));
 
         PlaceHudRect(LevelText == null ? null : LevelText.rectTransform,
             new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(24f, -22f), new Vector2(232f, 44f));
@@ -1245,6 +1446,17 @@ public class UIManager : MonoBehaviour
 
     public void UpdateRunHud()
     {
+        if (spasmActiveIcon != null)
+        {
+            bool spasmActive = characterCombat != null && characterCombat.GetVesselSkillLevel(UpgradeType.VascularSpasmRing) > 0;
+            if (spasmActiveIcon.gameObject.activeSelf != spasmActive) spasmActiveIcon.gameObject.SetActive(spasmActive);
+            if (spasmActive)
+            {
+                Color ic = spasmActiveIcon.color;
+                ic.a = 0.75f + 0.25f * Mathf.Sin(Time.time * 4f);
+                spasmActiveIcon.color = ic;
+            }
+        }
         if (RunStatsText == null) return;
         GameManager run = GameManager.Instance;
         int kills = run == null ? 0 : run.enemiesDefeated;

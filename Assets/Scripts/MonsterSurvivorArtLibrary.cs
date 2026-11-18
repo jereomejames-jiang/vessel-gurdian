@@ -41,6 +41,23 @@ public static class MonsterSurvivorArtLibrary
         return cached;
     }
 
+    // 像素特效单图（vfx_*）：运行时 FullRect 建精灵，ppu=96 与角色像素密度对齐。
+    // 不走 importer 的 tight mesh：首导入的 sprite mesh/UV 会坏（白月牙/尺寸错）。
+    public static Sprite LoadVfx(string assetName, float ppu = 96f)
+    {
+        string key = ppu == 96f ? assetName : assetName + "@" + ppu;
+        Sprite cached;
+        // 项目关闭了 domain reload：重导入贴图后旧缓存精灵的 texture 已销毁，必须重建。
+        if (singleCache.TryGetValue(key, out cached) && cached != null && cached.texture != null) return cached;
+        Texture2D tex = Resources.Load<Texture2D>(assetName);
+        if (tex == null) return null;
+        cached = Sprite.Create(tex, new Rect(0f, 0f, tex.width, tex.height),
+            new Vector2(0.5f, 0.5f), ppu, 0, SpriteMeshType.FullRect);
+        cached.name = assetName;
+        singleCache[key] = cached;
+        return cached;
+    }
+
     public static Sprite FirstFrame(string assetName)
     {
         Sprite[] frames = LoadFrames(assetName);
@@ -132,6 +149,9 @@ public static class MonsterSurvivorArtLibrary
 
     public static Sprite SkillIcon(UpgradeType type)
     {
+        // task3：医生画像风格像素图标优先（Resources/SkillIcons/skill_<enum>），缺失回退旧通用图。
+        Sprite pixel = Resources.Load<Sprite>("SkillIcons/skill_" + (int)type);
+        if (pixel != null) return pixel;
         switch (type)
         {
             case UpgradeType.MembraneStent: return LoadSingle("ui_ab_shield");
@@ -174,6 +194,11 @@ public static class MonsterSurvivorArtLibrary
             case EnemyKind.PrimitiveCell: return "enemy_pumpkin";
             case EnemyKind.TargetBlocker: return "enemy_eye";
             case EnemyKind.NodeBoss: return "enemy_mega_slime";
+            // 动脉怪物沿用现有素材库风格，不引入新外部素材。
+            case EnemyKind.ArteryEmbolism: return "enemy_slime";
+            case EnemyKind.SheddingEmbolus: return "enemy_eye";
+            case EnemyKind.PressureSpray: return "enemy_cell_shadow";
+            case EnemyKind.SideEffectGap: return "enemy_jellyfish";
         }
         return "enemy_slime";
     }
@@ -281,12 +306,27 @@ public static class MonsterSurvivorArtLibrary
         renderer.sprite = frames[0]; renderer.color = Color.white;
         renderer.sortingOrder = kind == EnemyKind.NodeBoss ? 4 : 2;
         float scale = kind == EnemyKind.NodeBoss ? 2.0f : (kind == EnemyKind.SpikeSoldier ? 1.12f : 1.18f);
+        if (kind == EnemyKind.ArteryEmbolism) scale = 0.95f;
+        else if (kind == EnemyKind.SheddingEmbolus) scale = 1.0f;
+        else if (kind == EnemyKind.PressureSpray) scale = 0.62f;
+        else if (kind == EnemyKind.SideEffectGap) scale = 1.2f;
         // MicroThrombus renders as an elongated clot rather than a round blob.
         enemyObject.transform.localScale = kind == EnemyKind.MicroThrombus ? new Vector3(2.3f, 0.9f, 1f) : Vector3.one * scale;
         MonsterSurvivorSpriteAnimator animator = enemyObject.GetComponent<MonsterSurvivorSpriteAnimator>();
         if (animator == null) animator = enemyObject.AddComponent<MonsterSurvivorSpriteAnimator>();
         animator.SetFrames(frames, kind == EnemyKind.NodeBoss ? 5f : 8f);
         Enemy enemy = enemyObject.GetComponent<Enemy>(); if (enemy != null) enemy.visualColor = Color.white;
+        // 动脉新怪以淡色 tint 与静脉同类区分（素材本体不变）。
+        Color arteryTint = Color.white;
+        if (kind == EnemyKind.ArteryEmbolism) arteryTint = new Color(1f, 0.62f, 0.62f, 1f);
+        else if (kind == EnemyKind.SheddingEmbolus) arteryTint = new Color(1f, 0.8f, 0.6f, 1f);
+        else if (kind == EnemyKind.PressureSpray) arteryTint = new Color(1f, 0.5f, 0.45f, 1f);
+        else if (kind == EnemyKind.SideEffectGap) arteryTint = new Color(0.82f, 0.62f, 0.95f, 1f);
+        if (arteryTint != Color.white)
+        {
+            renderer.color = arteryTint;
+            if (enemy != null) enemy.visualColor = arteryTint;
+        }
     }
 
     public static void ApplySliced(Image image, string styleKey, Color color)

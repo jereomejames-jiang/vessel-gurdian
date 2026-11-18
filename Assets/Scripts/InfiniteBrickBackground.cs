@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 // A recycled brick field that stays world anchored while extending forever.
@@ -15,12 +16,18 @@ public class InfiniteBrickBackground : MonoBehaviour
     public int sortingOrder = -100;
     public SpriteRenderer sourceRenderer;
     public Sprite brickSprite;
+    // 艺术地块（无缝瓦片+装饰变体）。为空时走程序化砖纹旧路径。
+    public Sprite[] tileSprites;
+    // 砖纹半行错缝；艺术瓦片为方格网，不错缝。
+    public bool staggerRows = true;
     public Transform tileRoot;
     public int currentCellX;
     public int currentCellY;
     float lastCoverageOrthoSize = -1f;
     float lastCoverageAspect = -1f;
     float scrollOffsetY;
+    bool ownsRuntimeSprite;
+    static readonly Dictionary<string, Sprite[]> tileSetCache = new Dictionary<string, Sprite[]>();
 
     void Awake()
     {
@@ -91,7 +98,12 @@ public class InfiniteBrickBackground : MonoBehaviour
             tileRoot = root.transform;
             tileRoot.SetParent(transform, false);
         }
-        if (brickSprite == null) brickSprite = CreateBrickSprite();
+        bool useArt = tileSprites != null && tileSprites.Length > 0;
+        if (!useArt && brickSprite == null)
+        {
+            brickSprite = CreateBrickSprite();
+            ownsRuntimeSprite = true;
+        }
 
         columns = Mathf.Max(5, columns | 1);
         rows = Mathf.Max(7, rows | 1);
@@ -113,7 +125,7 @@ public class InfiniteBrickBackground : MonoBehaviour
             tile.gameObject.SetActive(active);
             if (!active) continue;
             SpriteRenderer renderer = tile.GetComponent<SpriteRenderer>();
-            renderer.sprite = brickSprite;
+            renderer.sprite = useArt ? tileSprites[0] : brickSprite;
             renderer.color = Color.white;
             renderer.sortingOrder = sortingOrder;
         }
@@ -122,21 +134,83 @@ public class InfiniteBrickBackground : MonoBehaviour
 
     public void RefreshTheme()
     {
-        if (brickSprite != null)
+        if (ownsRuntimeSprite && brickSprite != null)
         {
             Texture2D oldTexture = brickSprite.texture;
             Destroy(brickSprite);
             if (oldTexture != null) Destroy(oldTexture);
             brickSprite = null;
+            ownsRuntimeSprite = false;
         }
         BuildField();
     }
 
     public void SetTheme(Color newBrickColor, Color newMortarColor)
     {
+        tileSprites = null;
+        staggerRows = true;
+        brickWidth = 2f;
+        brickHeight = 1f;
         brickColor = newBrickColor;
         mortarColor = newMortarColor;
         RefreshTheme();
+    }
+
+    /// <summary>切换到无缝艺术瓦片主题；cell 为世界尺寸（= 贴图像素 / 32）。</summary>
+    public void SetTileTheme(Sprite[] sprites, float cellWidth, float cellHeight)
+    {
+        tileSprites = sprites;
+        staggerRows = false;
+        brickWidth = cellWidth;
+        brickHeight = cellHeight;
+        if (ownsRuntimeSprite && brickSprite != null)
+        {
+            Texture2D oldTexture = brickSprite.texture;
+            Destroy(brickSprite);
+            if (oldTexture != null) Destroy(oldTexture);
+            brickSprite = null;
+            ownsRuntimeSprite = false;
+        }
+        BuildField();
+    }
+
+    public static Sprite[] LoadTileSet(string key, int count)
+    {
+        Sprite[] cached;
+        if (tileSetCache.TryGetValue(key, out cached) && cached != null && cached.Length == count)
+        {
+            // 静态缓存跨 play 会话存活，而 Sprite.Create 的对象退出 play 即被销毁；
+            // 数组引用仍在但元素已死，必须用 Unity 的空判定逐个验活后重建。
+            bool alive = true;
+            for (int i = 0; i < count; i++) if (cached[i] == null) { alive = false; break; }
+            if (alive) return cached;
+        }
+        Sprite[] set = new Sprite[count];
+        for (int i = 0; i < count; i++)
+        {
+            Texture2D tex = Resources.Load<Texture2D>("MapTiles/" + key + "_" + i);
+            if (tex == null) return null;
+            tex.filterMode = FilterMode.Point;
+            tex.wrapMode = TextureWrapMode.Clamp;
+            set[i] = Sprite.Create(tex, new Rect(0f, 0f, tex.width, tex.height), new Vector2(0.5f, 0.5f), 32f);
+            set[i].name = "MapTile_" + key + "_" + i;
+        }
+        tileSetCache[key] = set;
+        return set;
+    }
+
+    // 世界格哈希 → 装饰变体；密度对齐效果预览（约 2% / 种）。
+    static int VariantIndex(int x, int y, int count)
+    {
+        if (count < 3) return 0;
+        uint h = (uint)(x * 73856093) ^ (uint)(y * 19349663);
+        h ^= h >> 13;
+        h *= 0x5bd1e995u;
+        h ^= h >> 15;
+        int r = (int)(h % 1000u);
+        if (r < 18) return 1;
+        if (r < 36) return 2;
+        return 0;
     }
 
     public void LayoutField()
@@ -150,13 +224,15 @@ public class InfiniteBrickBackground : MonoBehaviour
         for (int y = 0; y < rows; y++)
         {
             int worldY = currentCellY + y - halfRows;
-            float rowOffset = (worldY & 1) == 0 ? 0f : brickWidth * 0.5f;
+            float rowOffset = staggerRows && (worldY & 1) != 0 ? brickWidth * 0.5f : 0f;
             for (int x = 0; x < columns; x++)
             {
                 int worldX = currentCellX + x - halfColumns;
                 Transform tile = tileRoot.GetChild(index++);
                 tile.localPosition = new Vector3(worldX * brickWidth + rowOffset - transform.position.x,
                     worldY * brickHeight - transform.position.y, 0f);
+                if (tileSprites != null && tileSprites.Length > 1)
+                    tile.GetComponent<SpriteRenderer>().sprite = tileSprites[VariantIndex(worldX, worldY, tileSprites.Length)];
             }
         }
     }
@@ -169,7 +245,8 @@ public class InfiniteBrickBackground : MonoBehaviour
         // The masonry pattern repeats every two rows (including the half-brick
         // horizontal offset), so wrap the visual scroll phase instead of moving
         // rows through the field. This keeps the camera coverage centered forever.
-        float repeatDistance = brickHeight * 2f;
+        // 方格艺术瓦片每行即周期，wrap 距离取单格高。
+        float repeatDistance = staggerRows ? brickHeight * 2f : brickHeight;
         while (scrollOffsetY <= -repeatDistance) scrollOffsetY += repeatDistance;
         tileRoot.localPosition = new Vector3(0f, scrollOffsetY, 0f);
     }

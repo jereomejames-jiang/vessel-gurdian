@@ -78,7 +78,9 @@ public class SkillCodexManager : MonoBehaviour
 
     public void EnsureCards()
     {
-        if (cards != null && cards.Length > 0 && System.Array.TrueForAll(cards, c => c != null && VesselSkillCatalog.IsVesselSkill(c.linkedUpgradeType))) return;
+        // 设定集(3) 闭集：图鉴卡必须与 27 项闭集一致，旧版残留（弹簧圈/血液回收钳/体外循环泵）一律重建。
+        if (cards != null && cards.Length == VesselSkillCatalog.Types.Length &&
+            System.Array.TrueForAll(cards, c => c != null && VesselSkillCatalog.IsVesselSkill(c.linkedUpgradeType) && !VesselSkillCatalog.IsRetired(c.linkedUpgradeType))) return;
         LevelUpManager levels = FindAnyObjectByType<LevelUpManager>();
         if (levels != null) levels.Subscribe();
         List<SkillCardDefinition> runtimeCards = new List<SkillCardDefinition>();
@@ -86,7 +88,7 @@ public class SkillCodexManager : MonoBehaviour
         {
             foreach (UpgradeOption option in levels.allUpgrades)
             {
-                if (option == null || !VesselSkillCatalog.IsVesselSkill(option.type)) continue;
+                if (option == null || !VesselSkillCatalog.IsVesselSkill(option.type) || VesselSkillCatalog.IsRetired(option.type)) continue;
                 SkillCardDefinition card = option.skillCard;
                 if (card == null) card = VesselSkillCatalog.CreateCard(VesselSkillCatalog.IndexOf(option.type));
                 runtimeCards.Add(card);
@@ -317,9 +319,12 @@ public class SkillCodexManager : MonoBehaviour
         if (detailText == null || cards == null || index < 0 || index >= cards.Length) return;
         selectedIndex = index;
         SkillCardDefinition card = cards[index];
-        string firstLine = (string.IsNullOrEmpty(card.iconGlyph) ? "" : card.iconGlyph + "  ") + card.displayName + "  ·  " + card.description;
+        string typeLine = VesselSkillCatalog.IsPassive(card.linkedUpgradeType) ? "被动 · 选取后立即生效（无等级）"
+            : VesselSkillCatalog.IsEvolution(card.linkedUpgradeType) ? "进化 · 替换原技能效果（一次性）"
+            : "主动 · 三次选取 Lv1→Lv3";
+        string firstLine = (string.IsNullOrEmpty(card.iconGlyph) ? "" : card.iconGlyph + "  ") + card.displayName + "  ·  " + typeLine;
         detailText.text = card.IsUnlocked
-            ? UITheme.Wrap(firstLine, UITheme.TextPrimary, UITheme.Value) + "\n" + card.educationText
+            ? UITheme.Wrap(firstLine, UITheme.TextPrimary, UITheme.Value) + "\n" + card.description + "\n" + card.educationText
             : UITheme.Wrap(card.displayName, UITheme.TextPrimary, UITheme.Value) + "\n在战斗升级时选择对应技能，即可永久点亮这张卡牌。";
         for (int j = 0; j < cardButtons.Count; j++)
             TintTileBorder(cardButtons[j], j == index);

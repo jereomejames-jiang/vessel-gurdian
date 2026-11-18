@@ -67,7 +67,7 @@ public class GameManager : MonoBehaviour
 
     void Update()
     {
-        if (Input.GetKeyDown(KeyCode.F8)) GameBalance.Reload();
+        if (Input.GetKeyDown(KeyCode.F8)) { GameBalance.Reload(); SkillText.Reload(); }
         if (gameEnded || Time.timeScale <= 0f) return;
         elapsedTime = Mathf.Min(gameDuration, elapsedTime + Time.deltaTime);
         if (elapsedTime >= gameDuration && !IsBossEngaged()) EndGame();
@@ -128,6 +128,18 @@ public class GameManager : MonoBehaviour
     {
         // Brief realtime pause so the boss death reads before the result panel.
         yield return new WaitForSecondsRealtime(GameBalance.Get("game.victory_delay", 1.5f));
+        // 设定集(3) 节点结算「免费升级次数」⸢页裁⸥→保留现值（无免费升级，默认 0，标旗）。
+        int freeChoices = GameBalance.GetInt("game.boss_free_upgrades", 0);
+        if (freeChoices > 0 && levelUpManager != null)
+        {
+            levelUpManager.GrantFreeChoices(freeChoices);
+            float guard = 0f;
+            while (levelUpManager.isChoosing && guard < 180f)
+            {
+                yield return new WaitForSecondsRealtime(0.1f);
+                guard += 0.1f;
+            }
+        }
         if (!gameEnded) FinishGame(true);
     }
 
@@ -145,6 +157,8 @@ public class GameManager : MonoBehaviour
         if (gameEnded) return;
         gameEnded = true;
         victory = won;
+        // 设定集(3) 节点结算：击败节点 Boss 才解锁下一张地图；Boss 存活通关不解锁。
+        if (won) PlayerPrefs.SetInt("VesselGuard.StageCleared_" + selectedLevel, 1);
         Time.timeScale = 0f;
         OnGameEnded?.Invoke(won);
     }
@@ -160,12 +174,25 @@ public class GameManager : MonoBehaviour
         InfiniteBrickBackground background = FindAnyObjectByType<InfiniteBrickBackground>();
         if (background == null) return;
 
+        // 1/2 关优先用美术无缝瓦片（含装饰变体）；素材缺失时回退程序化砖色。
         if (selectedLevel == 1)
         {
+            Sprite[] tiles = InfiniteBrickBackground.LoadTileSet("capillary", 3);
+            if (tiles != null)
+            {
+                background.SetTileTheme(tiles, 92f / 32f, 92f / 32f);
+                return;
+            }
             background.SetTheme(new Color(0.16f, 0.075f, 0.12f, 1f), new Color(0.035f, 0.018f, 0.035f, 1f));
         }
         else if (selectedLevel == 2)
         {
+            Sprite[] tiles = InfiniteBrickBackground.LoadTileSet("vein", 3);
+            if (tiles != null)
+            {
+                background.SetTileTheme(tiles, 3f, 3f);
+                return;
+            }
             background.SetTheme(new Color(0.035f, 0.11f, 0.2f, 1f), new Color(0.008f, 0.025f, 0.055f, 1f));
         }
         else

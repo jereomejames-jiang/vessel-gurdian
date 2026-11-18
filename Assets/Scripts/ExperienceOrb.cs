@@ -9,12 +9,13 @@ public class ExperienceOrb : MonoBehaviour
     public Transform player;
     public PlayerStats playerStats;
     public bool collected;
+    CharacterCombat combat;
 
     void Start()
     {
         magnetRange = GameBalance.Get("xp.magnet_range", magnetRange);
         magnetSpeed = GameBalance.Get("xp.magnet_speed", magnetSpeed);
-        ApplySuctionTubeBonus();
+        combat = FindAnyObjectByType<CharacterCombat>();
         SpriteRenderer renderer = GetComponent<SpriteRenderer>();
         if (renderer == null) return;
         string gem = xpValue >= 15 ? "xp_purple" : (xpValue >= 5 ? "xp_orange" : (xpValue >= 3 ? "xp_green" : "xp_blue"));
@@ -38,9 +39,10 @@ public class ExperienceOrb : MonoBehaviour
         }
 
         if (player == null) return;
+        if (playerStats == null) playerStats = player.GetComponent<PlayerStats>();
 
         float distance = Vector2.Distance(transform.position, player.position);
-        if (distance <= magnetRange)
+        if (distance <= EffectiveMagnetRange())
         {
             transform.position = Vector3.MoveTowards(transform.position, player.position, magnetSpeed * Time.deltaTime);
         }
@@ -101,14 +103,16 @@ public class ExperienceOrb : MonoBehaviour
         Destroy(gameObject);
     }
 
-    void ApplySuctionTubeBonus()
+    // 吸液管（v3 §7 被动）：拾取半径 +20%/级，随等级实时生效；
+    // 磁铁拾取物（v3 §9）：拾取半径 +80%，10s。
+    public float EffectiveMagnetRange()
     {
-        CharacterCombat combat = FindAnyObjectByType<CharacterCombat>();
-        if (combat == null) return;
-        int level = combat.GetVesselSkillLevel(UpgradeType.SuctionTube);
-        if (level <= 0) return;
-        float mult = level >= 3 ? GameBalance.Get("skill.tube.magnet_lv3", 1.3f)
-            : (level == 2 ? GameBalance.Get("skill.tube.magnet_lv2", 1.2f) : GameBalance.Get("skill.tube.magnet_lv1", 1.1f));
-        magnetRange *= mult;
+        if (combat == null) combat = FindAnyObjectByType<CharacterCombat>();
+        float mult = 1f;
+        if (combat != null)
+            mult += GameBalance.Get("passive.tube.magnet", 0.2f) * combat.GetVesselSkillLevel(UpgradeType.SuctionTube);
+        if (playerStats != null && playerStats.MagnetBoostActive)
+            mult *= GameBalance.Get("pickup.magnet_mult", 1.8f);
+        return magnetRange * mult;
     }
 }

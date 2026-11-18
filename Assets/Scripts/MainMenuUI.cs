@@ -42,6 +42,7 @@ public class MainMenuUI : MonoBehaviour
         if (levelSelectButton == null) levelSelectButton = FindButton("LevelSelectButton");
         if (background == null) background = FindAnyObjectByType<MainMenuBackground>();
         selectedLevel = Mathf.Clamp(PlayerPrefs.GetInt("VesselGuard.SelectedLevel", 1), 1, 3);
+        if (!IsLevelUnlocked(selectedLevel)) selectedLevel = 1;
         selectedCharacter = Mathf.Clamp(PlayerPrefs.GetInt(CharacterCatalog.PreferenceKey, 0), 0, 2);
         AudioListener.volume = PlayerPrefs.GetFloat("VesselGuard.MasterVolume", 1f);
 
@@ -129,9 +130,18 @@ public class MainMenuUI : MonoBehaviour
         if (levelSelectPanel != null) levelSelectPanel.SetActive(false);
     }
 
+    // 设定集(3) 节点结算：上一关节点 Boss 被击败才解锁下一张地图（Boss 存活通关不解锁）。
+    public bool IsLevelUnlocked(int level)
+    {
+        if (level <= 1) return true;
+        return PlayerPrefs.GetInt("VesselGuard.StageCleared_" + (level - 1), 0) > 0;
+    }
+
     public void SelectLevel(int level)
     {
-        selectedLevel = Mathf.Clamp(level, 1, 3);
+        int target = Mathf.Clamp(level, 1, 3);
+        if (!IsLevelUnlocked(target)) return;
+        selectedLevel = target;
         PlayerPrefs.SetInt("VesselGuard.SelectedLevel", selectedLevel);
         PlayerPrefs.Save();
         RefreshLevelChoices();
@@ -483,6 +493,8 @@ public class MainMenuUI : MonoBehaviour
         for (int i = 0; i < levelButtons.Length; i++)
         {
             if (levelButtons[i] == null) continue;
+            bool unlocked = IsLevelUnlocked(i + 1);
+            levelButtons[i].interactable = unlocked;
             bool chosen = i + 1 == selectedLevel;
             ColorBlock cb = levelButtons[i].colors;
             cb.normalColor = chosen ? UITheme.SurfaceRaised : UITheme.Surface;

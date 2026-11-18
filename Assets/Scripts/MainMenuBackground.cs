@@ -118,6 +118,24 @@ public class MainMenuBackground : MonoBehaviour
     static void ApplySelectedLevelTheme(InfiniteBrickBackground background)
     {
         int level = Mathf.Clamp(PlayerPrefs.GetInt("VesselGuard.SelectedLevel", 1), 1, 3);
+        // 菜单预览只用纯面瓦片：ScrollDown 相位回绕时装饰变体会跳变。
+        if (level == 1 || level == 2)
+        {
+            Sprite[] tiles = InfiniteBrickBackground.LoadTileSet(level == 1 ? "capillary" : "vein", 3);
+            if (tiles != null)
+            {
+                float cell = level == 1 ? 92f / 32f : 3f;
+                background.tileSprites = new[] { tiles[0] };
+                background.staggerRows = false;
+                background.brickWidth = cell;
+                background.brickHeight = cell;
+                return;
+            }
+        }
+        background.tileSprites = null;
+        background.staggerRows = true;
+        background.brickWidth = 2f;
+        background.brickHeight = 1f;
         if (level == 1)
         {
             background.brickColor = UITheme.Hex("#241A18");

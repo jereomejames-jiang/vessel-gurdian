@@ -12,7 +12,12 @@ public enum EnemyKind
     FibrinNet,
     PrimitiveCell,
     TargetBlocker,
-    NodeBoss
+    NodeBoss,
+    // 设定集(3) §3.2 动脉怪物（数值表未导出→沿用同行为静脉怪物基线判断值，标旗 F51）。
+    ArteryEmbolism,   // 动脉栓塞：靠近后叠加减速与淤滞
+    SheddingEmbolus,  // 剥落栓子：身后留下持续减速的地面痕迹
+    PressureSpray,    // 高压飞沫：从左往右批次弹幕
+    SideEffectGap     // 副作用裂口：使周围异常细胞暂时无法被暴击（现行无暴击系统→20%减伤光环替代，标旗 F44）
 }
 
 public class EnemyArchetype : MonoBehaviour
@@ -110,6 +115,23 @@ public class EnemyArchetype : MonoBehaviour
             case EnemyKind.NodeBoss:
                 baseHP = 34; hpPerStage = 12; baseSpeed = 0.7f; speedPerStage = 0.08f; damage = 3; xp = 20;
                 transform.localScale = Vector3.one * 2.2f;
+                enemy.noPickupDrop = true;
+                break;
+            case EnemyKind.ArteryEmbolism:
+                baseHP = 5; hpPerStage = 2; baseSpeed = 2.2f; speedPerStage = 0.15f; damage = 1; xp = 4;
+                transform.localScale = Vector3.one * 0.85f;
+                break;
+            case EnemyKind.SheddingEmbolus:
+                baseHP = 6; hpPerStage = 2; baseSpeed = 1.9f; speedPerStage = 0.12f; damage = 1; xp = 5;
+                transform.localScale = Vector3.one * 0.9f;
+                break;
+            case EnemyKind.PressureSpray:
+                baseHP = 2; hpPerStage = 1; baseSpeed = 6f; speedPerStage = 0.3f; damage = 1; xp = 3;
+                transform.localScale = Vector3.one * 0.55f;
+                break;
+            case EnemyKind.SideEffectGap:
+                baseHP = 8; hpPerStage = 3; baseSpeed = 1.5f; speedPerStage = 0.1f; damage = 2; xp = 7;
+                transform.localScale = Vector3.one * 1.1f;
                 break;
         }
         enemy.maxHP = GameBalance.GetInt(prefix + "hp_base", baseHP) + stageIndex * GameBalance.GetInt(prefix + "hp_per_stage", hpPerStage);
@@ -127,11 +149,13 @@ public class EnemyArchetype : MonoBehaviour
                 GameBalance.GetInt(prefix + "zone_damage", 1), GameBalance.Get(prefix + "zone_slow", 0.55f),
                 gameObject, 9999f, GameBalance.Get(prefix + "zone_tick", 1f));
         
-        // 静脉淤血：接触玩家时叠加淤滞层数
+        // 静脉淤血：接触玩家时叠加淤滞层数与减速（R1-02；数值未给→判断值标旗 F60，叠层数 F59）。
         if (kind == EnemyKind.VenousStasis)
         {
             enemy.stasisOnContact = true;
             enemy.stasisStacksOnContact = GameBalance.GetInt(prefix + "stasis_stacks", 1);
+            enemy.contactSlowMult = GameBalance.Get("enemy.stasis.slow_mult", 0.6f);
+            enemy.contactSlowDuration = GameBalance.Get("enemy.stasis.slow_duration", 2f);
         }
         
         // 纤维蛋白网：死亡时创建减速区
@@ -161,6 +185,41 @@ public class EnemyArchetype : MonoBehaviour
             enemy.auraDamageReduction = GameBalance.Get(prefix + "aura_damage_reduction", 0.2f);
             enemy.isTargetBlocker = true;
         }
+
+        // 动脉栓塞：靠近后叠加减速与淤滞（同静脉淤血行为，R1-02；减速共用 enemy.stasis.slow_* 键）。
+        if (kind == EnemyKind.ArteryEmbolism)
+        {
+            enemy.stasisOnContact = true;
+            enemy.stasisStacksOnContact = GameBalance.GetInt(prefix + "stasis_stacks", 1);
+            enemy.contactSlowMult = GameBalance.Get("enemy.stasis.slow_mult", 0.6f);
+            enemy.contactSlowDuration = GameBalance.Get("enemy.stasis.slow_duration", 2f);
+        }
+
+        // 剥落栓子：身后留下持续减速的地面痕迹。
+        if (kind == EnemyKind.SheddingEmbolus)
+        {
+            enemy.dropsTrail = true;
+            enemy.trailInterval = GameBalance.Get(prefix + "trail_interval", 0.5f);
+            enemy.trailRadius = GameBalance.Get(prefix + "trail_radius", 0.8f);
+            enemy.trailSlow = GameBalance.Get(prefix + "trail_slow", 0.6f);
+            enemy.trailDuration = GameBalance.Get(prefix + "trail_duration", 3f);
+        }
+
+        // 高压飞沫：固定方向批次弹幕。
+        if (kind == EnemyKind.PressureSpray)
+        {
+            enemy.isPressureSpray = true;
+            enemy.sprayDirection = Vector2.right;
+        }
+
+        // 副作用裂口：与靶点遮蔽者同文（附录C4 疑似复制未改，照录实现 F44）；
+        // 「无法被暴击」现行无暴击系统→20%减伤光环替代（F44 补登记）。
+        if (kind == EnemyKind.SideEffectGap)
+        {
+            enemy.auraRadius = GameBalance.Get(prefix + "aura_radius", 3f);
+            enemy.auraDamageReduction = GameBalance.Get(prefix + "aura_damage_reduction", 0.2f);
+            enemy.isTargetBlocker = true;
+        }
     }
 
     public string ConfigKey()
@@ -176,6 +235,10 @@ public class EnemyArchetype : MonoBehaviour
             case EnemyKind.PrimitiveCell: return "primitive";
             case EnemyKind.TargetBlocker: return "blocker";
             case EnemyKind.NodeBoss: return "boss";
+            case EnemyKind.ArteryEmbolism: return "artery";
+            case EnemyKind.SheddingEmbolus: return "shed";
+            case EnemyKind.PressureSpray: return "spray";
+            case EnemyKind.SideEffectGap: return "sidegap";
             default: return "cell";
         }
     }
@@ -197,6 +260,10 @@ public class EnemyArchetype : MonoBehaviour
             case EnemyKind.PrimitiveCell: tint = new Color(0.3f, 0.8f, 0.4f, 1f); break;
             case EnemyKind.TargetBlocker: tint = new Color(0.2f, 0.2f, 0.3f, 1f); break;
             case EnemyKind.NodeBoss: tint = new Color(0.28f, 0.06f, 0.34f, 1f); break;
+            case EnemyKind.ArteryEmbolism: tint = new Color(0.62f, 0.12f, 0.16f, 1f); break;
+            case EnemyKind.SheddingEmbolus: tint = new Color(0.55f, 0.3f, 0.18f, 1f); break;
+            case EnemyKind.PressureSpray: tint = new Color(1f, 0.3f, 0.25f, 1f); break;
+            case EnemyKind.SideEffectGap: tint = new Color(0.35f, 0.12f, 0.3f, 1f); break;
         }
         spriteRenderer.color = tint;
         if (enemy != null) enemy.visualColor = tint;
@@ -251,16 +318,7 @@ public class EnemyArchetype : MonoBehaviour
             if (stats == null && hits[i] != null) stats = hits[i].GetComponentInParent<PlayerStats>();
             if (stats != null) stats.TakeDamage(Mathf.Max(1, enemy.contactDamage * ruptureExplosionDamageMultiplier));
         }
-        yield return new WaitForSecondsRealtime(GameBalance.Get("enemy.ruptured.spawn_delay", 0.08f));
-        EnemySpawner spawner = FindAnyObjectByType<EnemySpawner>();
-        if (spawner != null)
-        {
-            for (int i = 0; i < GameBalance.GetInt("enemy.ruptured.spawn_count", 2); i++)
-            {
-                Vector2 offset = Random.insideUnitCircle * GameBalance.Get("enemy.ruptured.spawn_offset", 0.55f);
-                spawner.SpawnSpecific(EnemyKind.CellShadow, transform.position + (Vector3)offset);
-            }
-        }
+        // R1-04：v3 §1.2 裂解的红细胞只有死亡爆炸，无分裂生成小细胞影；旧生成段与 spawn_* 键已删除（F55）。
     }
 
     public void OnDestroy()

@@ -25,6 +25,9 @@ public class PlayerController : MonoBehaviour
     public int slowZoneCount;
     public float slowZoneMultiplier = 1f;
     public List<float> activeSlowZoneMultipliers = new List<float>();
+    // 设定集(3) Boss1 毛细蔓延：踩中紫红血管线的短暂减速（计时型，与危险区减速取更小值）。
+    public float timedSlowMultiplier = 1f;
+    public float timedSlowUntil;
 
     public Vector2 Heading
     {
@@ -84,8 +87,10 @@ public class PlayerController : MonoBehaviour
         
         ApplyTurnInput(turnInput, Time.fixedDeltaTime);
         currentThrottle = autoMove ? 1f : 0f;
+        float timedSlow = Time.time < timedSlowUntil ? timedSlowMultiplier : 1f;
+        float slowFactor = Mathf.Min(slowZoneMultiplier, timedSlow);
         // Always advance along the current heading; W/S have no effect.
-        rb.MovePosition(rb.position + Heading * (moveSpeed * currentThrottle * slowZoneMultiplier * Time.fixedDeltaTime));
+        rb.MovePosition(rb.position + Heading * (moveSpeed * currentThrottle * slowFactor * Time.fixedDeltaTime));
     }
 
     void OnDisable()
@@ -156,6 +161,12 @@ public class PlayerController : MonoBehaviour
         }
         slowZoneCount = activeSlowZoneMultipliers.Count;
         RecalculateSlowZoneMultiplier();
+    }
+
+    public void ApplyTimedSlow(float multiplier, float duration)
+    {
+        timedSlowMultiplier = Mathf.Clamp(multiplier, GameBalance.Get("player.slow_zone_min", 0.1f), 1f);
+        timedSlowUntil = Mathf.Max(timedSlowUntil, Time.time + duration);
     }
 
     public void RecalculateSlowZoneMultiplier()

@@ -51,6 +51,10 @@ public class EnemySpawner : MonoBehaviour
         if (GameManager.Instance != null)
             stageIndex = Mathf.Clamp(GameManager.Instance.selectedLevel, 1, 3);
 
+        // 迅捷拾取物的全场减速窗口跨局重置。
+        Enemy.globalSlowMultiplier = 1f;
+        Enemy.globalSlowUntil = 0f;
+
         // Keep the live object count bounded. Difficulty comes from cadence and stats.
         // More bodies create the mowing-game rhythm while the registry keeps searches cheap.
         maxActiveEnemies = GameBalance.GetInt("spawn.max_active_base", 40) +
@@ -108,6 +112,16 @@ public class EnemySpawner : MonoBehaviour
     public void SpawnEnemy()
     {
         EnemyKind kind = ChooseKind();
+        // 高压飞沫（v3 §3.2）：从左往右的批次弹幕，整批出现在玩家左侧。
+        if (kind == EnemyKind.PressureSpray)
+        {
+            int batch = GameBalance.GetInt("enemy.spray.batch", 6);
+            float y0 = Random.Range(-2.5f, 2.5f);
+            Vector3 left = player.position + Vector3.left * spawnRadius;
+            for (int i = 0; i < batch && trackedEnemies.Count < maxActiveEnemies; i++)
+                SpawnSpecific(kind, left + Vector3.up * (y0 + i * GameBalance.Get("enemy.spray.batch_gap", 0.9f)));
+            return;
+        }
         Vector3 position = GetSpawnPosition();
         // Spawn in small packs so the field feels alive instead of a sparse trickle.
         int packSize = kind == EnemyKind.SpikeSoldier ? spikeClusterSize : Random.Range(packSizeMin, packSizeMax + 1);
@@ -141,7 +155,7 @@ public class EnemySpawner : MonoBehaviour
         float bossTime = GameBalance.Get("game.boss_time", 270f);
 
         if (stageElapsed >= bossTime)
-            return ChooseWeightedKind("spawn.comp.post_boss.", Random.value, 100, 0, 0, 0, 0, 0, 0, 0, 0);
+            return ChooseWeightedKind("spawn.comp.post_boss.", Random.value, 100, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
 
         float firstEnd = GameBalance.Get("spawn.comp.s" + stageIndex + "_t1", 90f);
         float secondEnd = GameBalance.Get("spawn.comp.s" + stageIndex + "_t2", 180f);
@@ -151,30 +165,36 @@ public class EnemySpawner : MonoBehaviour
 
         switch (stageIndex * 10 + phase)
         {
-            case 11: return ChooseWeightedKind(prefix, roll, 100, 0, 0, 0, 0, 0, 0, 0, 0);
-            case 12: return ChooseWeightedKind(prefix, roll, 60, 25, 15, 0, 0, 0, 0, 0, 0);
-            case 13: return ChooseWeightedKind(prefix, roll, 30, 20, 20, 15, 15, 0, 0, 0, 0);
-            case 21: return ChooseWeightedKind(prefix, roll, 0, 0, 0, 0, 0, 60, 40, 0, 0);
-            case 22: return ChooseWeightedKind(prefix, roll, 0, 0, 0, 0, 0, 35, 30, 35, 0);
-            case 23: return ChooseWeightedKind(prefix, roll, 0, 0, 0, 0, 0, 25, 20, 30, 25);
-            case 31: return ChooseWeightedKind(prefix, roll, 0, 50, 0, 30, 20, 0, 0, 0, 0);
-            case 32: return ChooseWeightedKind(prefix, roll, 0, 30, 25, 25, 0, 0, 0, 0, 20);
-            default: return ChooseWeightedKind(prefix, roll, 0, 20, 25, 25, 15, 0, 0, 0, 15);
+            case 11: return ChooseWeightedKind(prefix, roll, 100, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+            case 12: return ChooseWeightedKind(prefix, roll, 60, 25, 15, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+            case 13: return ChooseWeightedKind(prefix, roll, 30, 20, 20, 15, 15, 0, 0, 0, 0, 0, 0, 0, 0);
+            case 21: return ChooseWeightedKind(prefix, roll, 0, 0, 0, 0, 0, 60, 40, 0, 0, 0, 0, 0, 0);
+            case 22: return ChooseWeightedKind(prefix, roll, 0, 0, 0, 0, 0, 35, 30, 35, 0, 0, 0, 0, 0);
+            case 23: return ChooseWeightedKind(prefix, roll, 0, 0, 0, 0, 0, 25, 20, 30, 25, 0, 0, 0, 0);
+            // 动脉（v3 §3.1/§3.2）：p1 动脉栓塞+高压飞沫为主；p2 加入原始细胞；p3 混入副作用裂口。
+            // 时间轴旧名「高速栓塞/镰聚刺兵」与怪物表不对应（附录C1）→按怪物表实现并标旗。
+            case 31: return ChooseWeightedKind(prefix, roll, 20, 0, 0, 0, 0, 0, 0, 0, 0, 45, 0, 35, 0);
+            case 32: return ChooseWeightedKind(prefix, roll, 10, 0, 0, 0, 0, 0, 0, 30, 0, 30, 15, 15, 0);
+            default: return ChooseWeightedKind(prefix, roll, 10, 0, 0, 0, 0, 0, 0, 20, 0, 20, 15, 10, 25);
         }
     }
 
-    public EnemyKind ChooseWeightedKind(string prefix, float roll, int cell, int spike, int ruptured, int thrombus, int bleeding, int stasis, int fibrin, int primitive, int blocker)
+    public EnemyKind ChooseWeightedKind(string prefix, float roll, int cell, int spike, int ruptured, int thrombus, int bleeding, int stasis, int fibrin, int primitive, int blocker,
+        int artery = 0, int shed = 0, int spray = 0, int sidegap = 0)
     {
         float[] weights = {
             GameBalance.Get(prefix + "cell", cell), GameBalance.Get(prefix + "spike", spike),
             GameBalance.Get(prefix + "ruptured", ruptured), GameBalance.Get(prefix + "thrombus", thrombus),
             GameBalance.Get(prefix + "bleeding", bleeding), GameBalance.Get(prefix + "stasis", stasis),
             GameBalance.Get(prefix + "fibrin", fibrin), GameBalance.Get(prefix + "primitive", primitive),
-            GameBalance.Get(prefix + "blocker", blocker)
+            GameBalance.Get(prefix + "blocker", blocker), GameBalance.Get(prefix + "artery", artery),
+            GameBalance.Get(prefix + "shed", shed), GameBalance.Get(prefix + "spray", spray),
+            GameBalance.Get(prefix + "sidegap", sidegap)
         };
         EnemyKind[] kinds = { EnemyKind.CellShadow, EnemyKind.SpikeSoldier, EnemyKind.RupturedCell,
             EnemyKind.MicroThrombus, EnemyKind.BleedingGap, EnemyKind.VenousStasis,
-            EnemyKind.FibrinNet, EnemyKind.PrimitiveCell, EnemyKind.TargetBlocker };
+            EnemyKind.FibrinNet, EnemyKind.PrimitiveCell, EnemyKind.TargetBlocker,
+            EnemyKind.ArteryEmbolism, EnemyKind.SheddingEmbolus, EnemyKind.PressureSpray, EnemyKind.SideEffectGap };
         float total = 0f;
         for (int i = 0; i < weights.Length; i++) total += Mathf.Max(0f, weights[i]);
         if (total <= 0f) return EnemyKind.CellShadow;
@@ -314,7 +334,7 @@ public class EnemySpawner : MonoBehaviour
 
         // 1) 全场时停（用真实时间计 2 秒，不受 timeScale 影响）。
         Time.timeScale = 0f;
-        string bossName = stageIndex == 2 ? "曲张美杜莎" : "葡萄酒样色斑";
+        string bossName = stageIndex == 3 ? "动脉瘤巨像·赤冠" : (stageIndex == 2 ? "曲张美杜莎" : "葡萄酒样色斑");
         arena.ShowBanner("节点守护者 · " + bossName + " 来袭");
 
         // 2) 以摄像机视野为准计算竞技场范围。
@@ -340,6 +360,8 @@ public class EnemySpawner : MonoBehaviour
         if (boss == null) boss = bossObject.AddComponent<VesselNodeBoss>();
         boss.spawner = this;
         boss.player = player;
+        // 设定集(3) Boss 数值表：血量/接触伤害按 Boss 覆盖（在难度缩放之后生效）。
+        boss.ApplyBossStats();
 
         arena.BuildArena(arenaCenter, halfExtents, rawHalfH, player, boss);
         arena.HideBanner();

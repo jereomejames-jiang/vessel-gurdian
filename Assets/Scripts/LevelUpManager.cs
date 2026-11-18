@@ -26,9 +26,8 @@ public class LevelUpManager : MonoBehaviour
     public void Subscribe()
     {
         choicesPerLevel = GameBalance.GetInt("game.choices_per_level", choicesPerLevel);
-        // Always use the ten skills from the design sheet. This also migrates
-        // scenes that still serialize the five legacy prototype upgrades.
-        if (allUpgrades == null || allUpgrades.Length == 0 || !ContainsVesselSkill(allUpgrades))
+        // 设定集(3) 闭集：6 主动 + 12 被动 + 9 进化。场景序列化的旧池（含弹簧圈等残留项）一律重建。
+        if (allUpgrades == null || allUpgrades.Length == 0 || !MatchesClosedSet(allUpgrades))
             allUpgrades = VesselSkillCatalog.CreateOptions();
         if (playerStats == null) playerStats = FindAnyObjectByType<PlayerStats>();
         if (playerController == null) playerController = FindAnyObjectByType<PlayerController>();
@@ -50,6 +49,26 @@ public class LevelUpManager : MonoBehaviour
         return false;
     }
 
+    // 池必须与设定集(3)闭集一致：27 项齐全、无旧版残留、无原型数值项。
+    public bool MatchesClosedSet(UpgradeOption[] options)
+    {
+        if (options == null || options.Length != VesselSkillCatalog.Types.Length) return false;
+        for (int i = 0; i < options.Length; i++)
+        {
+            if (options[i] == null) return false;
+            UpgradeType t = options[i].type;
+            if (VesselSkillCatalog.IsRetired(t) || !VesselSkillCatalog.IsVesselSkill(t)) return false;
+        }
+        for (int i = 0; i < VesselSkillCatalog.Types.Length; i++)
+        {
+            bool found = false;
+            for (int j = 0; j < options.Length; j++)
+                if (options[j].type == VesselSkillCatalog.Types[i]) { found = true; break; }
+            if (!found) return false;
+        }
+        return true;
+    }
+
     void OnDisable()
     {
         if (subscribed && playerStats != null) playerStats.OnLevelUp -= HandleLevelUp;
@@ -68,12 +87,39 @@ public class LevelUpManager : MonoBehaviour
         if (!isChoosing && pendingLevels > 0) ShowNextChoices();
     }
 
+    // Boss 节点结算：免费随机升级。设定集(3)「免费升级次数」⸢页裁⸥→保留现值（无免费升级，次数由 game.boss_free_upgrades 控制，默认 0，标旗）。
+    public void GrantFreeChoices(int count)
+    {
+        if (count <= 0) return;
+        pendingLevels += count;
+        if (!isChoosing && !deferChoices) ShowNextChoices();
+    }
+
     public void ShowNextChoices()
     {
+        CharacterCombat combat = FindAnyObjectByType<CharacterCombat>();
         List<UpgradeOption> pool = new List<UpgradeOption>();
         if (allUpgrades != null)
             foreach (UpgradeOption option in allUpgrades)
-                if (option != null && !pool.Contains(option)) pool.Add(option);
+            {
+                if (option == null || pool.Contains(option)) continue;
+                UpgradeType t = option.type;
+                if (VesselSkillCatalog.IsRetired(t) || !VesselSkillCatalog.IsVesselSkill(t)) continue;
+                int level = playerSkillCollection == null ? 0 : playerSkillCollection.GetLevel(t);
+                if (VesselSkillCatalog.IsEvolution(t))
+                {
+                    // 进化一次性；条件未满足不进入候选（§8 进化条件列）。
+                    if (level >= 1) continue;
+                    if (!VesselSkillCatalog.EvolutionReady(t, playerSkillCollection, combat)) continue;
+                }
+                else
+                {
+                    if (level >= VesselSkillCatalog.MaxLevel(t)) continue;
+                    // §8 表头：进化后去除原主动技能效果 → 已进化的基础主动不再出现。
+                    if (VesselSkillCatalog.IsActiveSkill(t) && EvolutionOwnedFor(t)) continue;
+                }
+                pool.Add(option);
+            }
 
         if (pool.Count == 0)
         {
@@ -82,7 +128,7 @@ public class LevelUpManager : MonoBehaviour
             currentChoices = Array.Empty<UpgradeOption>();
             OnChoicesClosed?.Invoke();
             if (GameManager.Instance == null || !GameManager.Instance.gameEnded) Time.timeScale = 1f;
-            Debug.LogWarning("VesselGuard: Resources 中没有可用的升级选项。");
+            Debug.LogWarning("VesselGuard: 当前没有可用的升级选项（可能已全部满级）。");
             return;
         }
 
@@ -97,6 +143,18 @@ public class LevelUpManager : MonoBehaviour
         isChoosing = true;
         Time.timeScale = 0f;
         OnShowChoices?.Invoke(currentChoices);
+    }
+
+    bool EvolutionOwnedFor(UpgradeType active)
+    {
+        if (playerSkillCollection == null) return false;
+        for (int i = 0; i < VesselSkillCatalog.Types.Length; i++)
+        {
+            UpgradeType evo = VesselSkillCatalog.Types[i];
+            if (!VesselSkillCatalog.IsEvolution(evo)) continue;
+            if (VesselSkillCatalog.BaseActiveFor(evo) == active && playerSkillCollection.GetLevel(evo) > 0) return true;
+        }
+        return false;
     }
 
     public void ApplyUpgrade(UpgradeOption option)
@@ -130,8 +188,8 @@ public class LevelUpManager : MonoBehaviour
         }
         if (playerSkillCollection == null) playerSkillCollection = FindAnyObjectByType<PlayerSkillCollection>();
         if (playerSkillCollection != null) playerSkillCollection.RecordSelection(option);
-        int nextSkillLevel = playerSkillCollection == null ? Mathf.Clamp(previousSkillLevel + 1, 1, 3) :
-            Mathf.Clamp(playerSkillCollection.GetLevel(option.type), 1, 3);
+        int nextSkillLevel = playerSkillCollection == null ? Mathf.Clamp(previousSkillLevel + 1, 1, VesselSkillCatalog.MaxLevel(option.type)) :
+            Mathf.Clamp(playerSkillCollection.GetLevel(option.type), 1, VesselSkillCatalog.MaxLevel(option.type));
         CharacterCombat combat = FindAnyObjectByType<CharacterCombat>();
         if (combat != null && VesselSkillCatalog.IsVesselSkill(option.type))
             combat.ApplyVesselSkill(option.type, playerSkillCollection == null ? 1 : playerSkillCollection.GetLevel(option.type));

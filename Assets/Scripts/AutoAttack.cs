@@ -31,7 +31,12 @@ public class AutoAttack : MonoBehaviour
         attackTimer -= Time.deltaTime;
         if (attackTimer <= 0f)
         {
-            attackTimer = attackInterval * (characterCombat == null ? 1f : characterCombat.IntervalMultiplier());
+            // 快速处置（v3 §7）：普攻速度 +20%/级 → 间隔除以倍率。
+            float rapid = characterCombat == null ? 1f : characterCombat.BasicAttackSpeedMult();
+            // R1-08 替换语义：微量输液泵进化后护士基础攻击改为极短冷却持续发射（F58）。
+            float interval = attackInterval * (characterCombat == null ? 1f : characterCombat.IntervalMultiplier());
+            if (characterCombat != null) interval = characterCombat.EffectiveAttackInterval(interval);
+            attackTimer = interval / Mathf.Max(0.1f, rapid);
             FireAtNearestEnemy();
         }
     }
@@ -77,18 +82,27 @@ public class AutoAttack : MonoBehaviour
         Destroy(bulletObject, bulletLifetime);
     }
 
-    public void SpawnBullet(Vector2 direction, int maxTargets, Vector3 scale)
+    public GameObject SpawnBullet(Vector2 direction, int maxTargets, Vector3 scale)
     {
-        if (bulletPrefab == null) return;
+        return SpawnBullet(direction, maxTargets, scale, 1f);
+    }
+
+    // 进修培训：整体伤害倍率；深耕科研：弹速倍率（v3 §7）。extraSpeedMult 供吻合钉枪等高速弹体使用。
+    public GameObject SpawnBullet(Vector2 direction, int maxTargets, Vector3 scale, float extraSpeedMult)
+    {
+        if (bulletPrefab == null) return null;
         Quaternion rotation = Quaternion.Euler(0f, 0f, Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg - 90f);
         GameObject projectile = Instantiate(bulletPrefab, transform.position, rotation);
         projectile.name = "NurseNeedle";
         projectile.transform.localScale = scale;
+        float speedMult = characterCombat == null ? 1f : characterCombat.BulletSpeedMult();
+        int damage = characterCombat == null ? bulletDamage : characterCombat.D(bulletDamage);
         Rigidbody2D body = projectile.GetComponent<Rigidbody2D>();
-        if (body != null) body.linearVelocity = direction * bulletSpeed;
+        if (body != null) body.linearVelocity = direction * bulletSpeed * speedMult * extraSpeedMult;
         Bullet bullet = projectile.GetComponent<Bullet>();
-        if (bullet != null) { bullet.damage = bulletDamage; bullet.maxTargets = maxTargets; bullet.source = characterCombat; }
+        if (bullet != null) { bullet.damage = damage; bullet.maxTargets = maxTargets; bullet.source = characterCombat; }
         Destroy(projectile, bulletLifetime);
+        return projectile;
     }
 
     public void IncreaseDamage(int amount)
