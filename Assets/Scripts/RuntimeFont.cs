@@ -17,7 +17,7 @@ public static class RuntimeFont
         return regular;
     }
 
-    // 烘焙字体用不了 fontStyle=Bold，标题的重量层级只能靠独立的 Medium 字面撑。
+    // 标题重量层级靠独立的 Medium 字面撑。
     public static Font GetTitle()
     {
         if (medium == null) medium = Load(MediumAsset);
