@@ -27,8 +27,11 @@ public class KnowledgeTicker : MonoBehaviour
     public RectTransform plate;
     public RectTransform viewport;
     public Text skillTitle;
-    public Text categoryText;
     public KnowledgePlateGraphic emblem;
+    public KnowledgePlateGraphic frame;
+    public Text seal;
+    public Image skillIconImage;
+    public Image tickerPulse;
     public Image flash;
     public Font displayFont;
     public float activeHoldSeconds;
@@ -43,9 +46,14 @@ public class KnowledgeTicker : MonoBehaviour
         public string title;
         public string body;
         public Color accent;
+        public Sprite icon;
         public KnowledgeNotice(string title, string body, Color accent)
         {
             this.title = title; this.body = body; this.accent = accent;
+        }
+        public KnowledgeNotice(string title, string body, Color accent, Sprite icon)
+        {
+            this.title = title; this.body = body; this.accent = accent; this.icon = icon;
         }
     }
 
@@ -68,7 +76,7 @@ public class KnowledgeTicker : MonoBehaviour
             accent = SkillCodexManager.Instance.ColorFor(card.linkedUpgradeType);
         pending.Enqueue(new KnowledgeNotice("已获得  ·  " + option.displayName,
             card != null && !string.IsNullOrEmpty(card.educationText) ? card.educationText : DefaultEducation(option.type),
-            accent));
+            accent, MonsterSurvivorArtLibrary.SkillIcon(option.type)));
     }
 
     public void ShowMessage(string message)
@@ -105,6 +113,12 @@ public class KnowledgeTicker : MonoBehaviour
         if (label == null) return;
         skillTitle.text = notice.title;
         label.text = notice.body;
+        if (skillIconImage != null)
+        {
+            skillIconImage.sprite = notice.icon;
+            skillIconImage.gameObject.SetActive(notice.icon != null);
+        }
+        if (seal != null) seal.gameObject.SetActive(notice.icon == null);
         emblem.accent = notice.accent;
         emblem.SetVerticesDirty();
         elapsed = 0f;
@@ -114,7 +128,7 @@ public class KnowledgeTicker : MonoBehaviour
         overflowWidth = 0f;
         movingLabel.anchoredPosition = Vector2.zero;
         int chars = string.IsNullOrEmpty(notice.body) ? 0 : notice.body.Length;
-        activeHoldSeconds = Mathf.Clamp(chars * 0.16f, minimumReadSeconds, 12f);
+        activeHoldSeconds = Mathf.Clamp(chars * 0.18f, minimumReadSeconds, 14f);
     }
 
     public void ApplyAppearance()
@@ -127,9 +141,29 @@ public class KnowledgeTicker : MonoBehaviour
         group.alpha = eased * (1f - end) * (1f - end);
         plate.anchoredPosition = new Vector2(0f, bottomMargin - 24f * (1f - eased) - 12f * end);
         plate.localScale = Vector3.one * Mathf.Lerp(0.98f, 1f, eased);
-        Color flashColor = UITheme.WarmSoft;
-        flashColor.a = 0.12f * Mathf.Pow(1f - Mathf.Clamp01(elapsed / 0.6f), 2f);
-        flash.color = flashColor;
+        // 图标盖章：1.25→0.95→1，落定在病历井里。
+        float u = Mathf.Clamp01((elapsed - 0.05f) / 0.35f);
+        float s = elapsed >= 0.4f ? 1f
+            : u < 0.6f ? Mathf.Lerp(1.25f, 0.95f, u / 0.6f)
+            : Mathf.Lerp(0.95f, 1f, (u - 0.6f) / 0.4f);
+        if (skillIconImage != null) skillIconImage.rectTransform.localScale = Vector3.one * s;
+        if (seal != null) seal.rectTransform.localScale = Vector3.one * s;
+        // 分隔线左→右画出，驱动框体 dividerT。
+        float du = Mathf.Clamp01((elapsed - 0.15f) / 0.35f);
+        if (frame != null)
+        {
+            frame.dividerT = du;
+            if (du < 1f) frame.SetVerticesDirty();
+        }
+        // 扫光：入场 0.7s 内一条竖向光带左→右掠过。
+        if (flash != null)
+        {
+            float sw = Mathf.Clamp01(elapsed / 0.7f);
+            flash.rectTransform.anchoredPosition = new Vector2(Mathf.Lerp(-70f, renderedWidth + 10f, sw), 105f);
+            Color fc = UITheme.WarmSoft;
+            fc.a = elapsed < 0.7f ? 0.10f : 0f;
+            flash.color = fc;
+        }
     }
 
     public void Clear()
@@ -159,34 +193,49 @@ public class KnowledgeTicker : MonoBehaviour
         plate = root.GetComponent<RectTransform>();
         plate.anchorMin = plate.anchorMax = new Vector2(0.5f, 0f);
         plate.pivot = new Vector2(0.5f, 0f);
-        plate.sizeDelta = new Vector2(panelWidth, 180f);
+        plate.sizeDelta = new Vector2(panelWidth, 210f);
         plate.anchoredPosition = new Vector2(0f, bottomMargin);
         group = root.GetComponent<CanvasGroup>();
         group.blocksRaycasts = false; group.interactable = false; group.alpha = 0f;
-        KnowledgePlateGraphic frame = root.AddComponent<KnowledgePlateGraphic>();
+        frame = root.AddComponent<KnowledgePlateGraphic>();
         frame.raycastTarget = false;
-        RectTransform badge = MakeRect("SkillSeal", plate, new Vector2(54f, 66f), new Vector2(46f, 132f));
+        RectTransform badge = MakeRect("SkillSeal", plate, new Vector2(84f, 84f), new Vector2(54f, 105f));
         badge.anchorMin = badge.anchorMax = new Vector2(0f, 0f);
         badge.gameObject.AddComponent<CanvasRenderer>();
         emblem = badge.gameObject.AddComponent<KnowledgePlateGraphic>();
         emblem.medallion = true; emblem.raycastTarget = false;
-        Text seal = MakeText("SealLabel", badge, "知", 25, UITheme.InkOnWarm);
+        seal = MakeText("SealLabel", badge, "知", 25, UITheme.InkOnWarm);
         seal.font = RuntimeFont.GetTitle();
         seal.alignment = TextAnchor.MiddleCenter;
         seal.rectTransform.anchorMin = seal.rectTransform.anchorMax = Vector2.one * 0.5f;
-        seal.rectTransform.sizeDelta = new Vector2(50f, 60f);
+        seal.rectTransform.sizeDelta = new Vector2(56f, 66f);
+        GameObject iconObj = new GameObject("SkillIcon", typeof(RectTransform), typeof(Image));
+        iconObj.transform.SetParent(badge, false);
+        skillIconImage = iconObj.GetComponent<Image>();
+        skillIconImage.preserveAspect = true;
+        skillIconImage.raycastTarget = false;
+        RectTransform iconRect = skillIconImage.rectTransform;
+        iconRect.anchorMin = iconRect.anchorMax = Vector2.one * 0.5f;
+        iconRect.sizeDelta = new Vector2(64f, 64f);
+        iconRect.anchoredPosition = Vector2.zero;
+        skillIconImage.gameObject.SetActive(false);
 
-        skillTitle = MakeText("SkillTitle", plate, "", 24, UITheme.WarmSoft);
+        skillTitle = MakeText("SkillTitle", plate, "", 26, UITheme.WarmSoft);
         skillTitle.font = RuntimeFont.GetTitle();
-        categoryText = MakeText("Category", plate, "技能科普 · 现实医学", 15, UITheme.TextMuted);
-        categoryText.alignment = TextAnchor.MiddleRight;
+        GameObject pulseObj = new GameObject("TickerPulse", typeof(RectTransform), typeof(Image));
+        pulseObj.transform.SetParent(plate, false);
+        tickerPulse = pulseObj.GetComponent<Image>();
+        tickerPulse.sprite = TickerPulseSprite();
+        tickerPulse.raycastTarget = false;
 
-        viewport = MakeRect("ParchmentViewport", plate, new Vector2(750f, 84f), new Vector2(80f, 50f));
+        viewport = MakeRect("ParchmentViewport", plate, new Vector2(744f, 116f), new Vector2(116f, 64f));
         viewport.anchorMin = viewport.anchorMax = new Vector2(0f, 0f);
         viewport.pivot = new Vector2(0f, 0.5f);
         viewport.gameObject.AddComponent<RectMask2D>();
-        label = MakeText("TickerText", viewport, "", 18, UITheme.TextPrimary);
-        label.lineSpacing = 1.15f;
+        // 烘焙字体无 fontStyle.Bold，正文用 medium 字面 + 加大字号撑重量。
+        label = MakeText("TickerText", viewport, "", 22, UITheme.TextPrimary);
+        label.font = RuntimeFont.GetTitle();
+        label.lineSpacing = 1.25f;
         movingLabel = label.rectTransform;
         label.alignment = TextAnchor.UpperLeft;
         label.horizontalOverflow = HorizontalWrapMode.Wrap;
@@ -195,7 +244,9 @@ public class KnowledgeTicker : MonoBehaviour
         movingLabel.pivot = new Vector2(0.5f, 0.5f);
         movingLabel.offsetMin = new Vector2(6f, 4f); movingLabel.offsetMax = new Vector2(-6f, -4f);
 
-        RectTransform gleam = MakeRect("SelectionGlow", plate, new Vector2(panelWidth - 24f, 42f), new Vector2(0f, 140f));
+        RectTransform gleam = MakeRect("SelectionGlow", plate, new Vector2(60f, 190f), new Vector2(0f, 105f));
+        gleam.anchorMin = gleam.anchorMax = new Vector2(0f, 0f);
+        gleam.pivot = new Vector2(0f, 0.5f);
         flash = gleam.gameObject.AddComponent<Image>();
         Color flashBase = UITheme.WarmSoft; flashBase.a = 0f;
         flash.color = flashBase;
@@ -207,13 +258,19 @@ public class KnowledgeTicker : MonoBehaviour
     {
         float canvasWidth = ((RectTransform)canvas.transform).rect.width;
         renderedWidth = Mathf.Max(240f, Mathf.Min(panelWidth, canvasWidth - 32f));
-        plate.sizeDelta = new Vector2(renderedWidth, 180f);
-        viewport.sizeDelta = new Vector2(Mathf.Max(100f, renderedWidth - 130f), 84f);
-        bool showCategory = renderedWidth >= 620f;
-        categoryText.gameObject.SetActive(showCategory);
-        SetTextRect(skillTitle, new Vector2(100f, 138f), new Vector2(Mathf.Max(80f, renderedWidth - (showCategory ? 340f : 135f)), 40f));
-        SetTextRect(categoryText, new Vector2(renderedWidth - 221f, 138f), new Vector2(185f, 32f));
-        flash.rectTransform.sizeDelta = new Vector2(renderedWidth - 24f, 40f);
+        plate.sizeDelta = new Vector2(renderedWidth, 210f);
+        viewport.sizeDelta = new Vector2(Mathf.Max(100f, renderedWidth - 136f), 116f);
+        SetTextRect(skillTitle, new Vector2(116f, 172f), new Vector2(Mathf.Max(80f, renderedWidth - 392f), 40f));
+        if (tickerPulse != null)
+        {
+            tickerPulse.gameObject.SetActive(renderedWidth >= 620f);
+            RectTransform pr = tickerPulse.rectTransform;
+            pr.anchorMin = pr.anchorMax = Vector2.zero;
+            pr.pivot = new Vector2(1f, 0.5f);
+            pr.sizeDelta = new Vector2(220f, 28f);
+            pr.anchoredPosition = new Vector2(renderedWidth - 20f, 172f);
+        }
+        flash.rectTransform.sizeDelta = new Vector2(60f, 190f);
     }
 
     public void SetTextRect(Text text, Vector2 position, Vector2 size)
@@ -247,5 +304,43 @@ public class KnowledgeTicker : MonoBehaviour
     {
         if (Instance == this) Instance = null;
         // displayFont 是共享资源（RuntimeFont），不能销毁
+    }
+
+    static Sprite tickerPulseSprite;
+    static Sprite TickerPulseSprite()
+    {
+        if (tickerPulseSprite != null) return tickerPulseSprite;
+        int w = 220, h = 28;
+        var tex = new Texture2D(w, h, TextureFormat.RGBA32, false);
+        tex.filterMode = FilterMode.Point; tex.wrapMode = TextureWrapMode.Clamp;
+        var px = new Color[w * h];
+        Color baseline = UITheme.HexA("#7FB5AD", 0.55f);
+        for (int x = 0; x < w; x++) { px[13 * w + x] = baseline; px[14 * w + x] = baseline; }
+        Vector2[] pts = { new Vector2(80, 14), new Vector2(86, 22), new Vector2(92, 4), new Vector2(98, 24), new Vector2(104, 10), new Vector2(110, 14) };
+        for (int i = 0; i < pts.Length - 1; i++) PlotLine(px, w, h, pts[i], pts[i + 1], UITheme.WarmAccent, 2);
+        for (int dy = -2; dy <= 2; dy++)
+            for (int dx = -2; dx <= 2; dx++)
+            {
+                int x = 98 + dx, y = 24 + dy;
+                if (dx * dx + dy * dy <= 5 && x >= 0 && x < w && y >= 0 && y < h) px[y * w + x] = UITheme.WarmAccent;
+            }
+        tex.SetPixels(px); tex.Apply();
+        tickerPulseSprite = Sprite.Create(tex, new Rect(0, 0, w, h), new Vector2(0.5f, 0.5f), 1f);
+        return tickerPulseSprite;
+    }
+
+    static void PlotLine(Color[] px, int w, int h, Vector2 a, Vector2 b, Color c, int thick)
+    {
+        int steps = Mathf.CeilToInt(Mathf.Max(Mathf.Abs(b.x - a.x), Mathf.Abs(b.y - a.y)) * 2f);
+        for (int i = 0; i <= steps; i++)
+        {
+            Vector2 p = Vector2.Lerp(a, b, (float)i / steps);
+            for (int dy = 0; dy < thick; dy++)
+                for (int dx = 0; dx < thick; dx++)
+                {
+                    int x = Mathf.RoundToInt(p.x) + dx, y = Mathf.RoundToInt(p.y) + dy;
+                    if (x >= 0 && x < w && y >= 0 && y < h) px[y * w + x] = c;
+                }
+        }
     }
 }

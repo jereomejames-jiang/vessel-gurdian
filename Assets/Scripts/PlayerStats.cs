@@ -86,7 +86,10 @@ public class PlayerStats : MonoBehaviour
 
     public int GetXPToNextLevel()
     {
-        return Mathf.Max(1, Mathf.CeilToInt(xpPerLevel * Mathf.Pow(xpGrowth, level - 1)));
+        float req = xpPerLevel * Mathf.Pow(xpGrowth, level - 1);
+        // 前期升级减速：1-5 级需求放大；倍率上限受 lv6 原值约束，避免曲线回凹。
+        if (level <= 5) req *= GameBalance.Get("xp.early_mult", 1.5f);
+        return Mathf.Max(1, Mathf.CeilToInt(req));
     }
 
     public void GainXP(int amount)

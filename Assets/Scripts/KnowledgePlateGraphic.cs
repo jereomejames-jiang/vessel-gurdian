@@ -6,6 +6,8 @@ public class KnowledgePlateGraphic : Image
 {
     public Color accent = new Color(0.16f, 0.65f, 0.85f);
     public bool medallion;
+    // 入场时分隔线左→右画出（0→1），KnowledgeTicker 每帧驱动。
+    public float dividerT = 1f;
 
     protected override void OnPopulateMesh(VertexHelper mesh)
     {
@@ -13,10 +15,20 @@ public class KnowledgePlateGraphic : Image
         Rect r = GetPixelAdjustedRect();
         if (medallion)
         {
-            Polygon(mesh, r, r.width * 0.48f, UITheme.HexA("#0A0806", 0.96f), UITheme.HexA("#0A0806", 0.96f));
-            Polygon(mesh, Inset(r, 3f), r.width * 0.44f, UITheme.WarmAccent, UITheme.Hex("#8A6B3F"));
-            // R2-04：勋章内盘降为 WarmAccent→WarmPress，不再是全 UI 最亮填充。
-            Polygon(mesh, Inset(r, 8f), r.width * 0.36f, UITheme.WarmAccent, UITheme.WarmPress);
+            // 方案A：深色方形切角井 + 技能色半透环 + 琥珀角括弧，像素图标在深底上原色可读。
+            Color ring = new Color(accent.r, accent.g, accent.b, 0.5f);
+            Polygon(mesh, r, 10f, ring, ring);
+            Polygon(mesh, Inset(r, 3f), 8f, UITheme.Deep, UITheme.Deep);
+            Rect b = Inset(r, 6f);
+            float arm = 14f, th = 3f;
+            Quad(mesh, new Rect(b.xMin, b.yMax - th, arm, th), UITheme.WarmAccent);
+            Quad(mesh, new Rect(b.xMin, b.yMax - arm, th, arm), UITheme.WarmAccent);
+            Quad(mesh, new Rect(b.xMax - arm, b.yMax - th, arm, th), UITheme.WarmAccent);
+            Quad(mesh, new Rect(b.xMax - th, b.yMax - arm, th, arm), UITheme.WarmAccent);
+            Quad(mesh, new Rect(b.xMin, b.yMin, arm, th), UITheme.WarmAccent);
+            Quad(mesh, new Rect(b.xMin, b.yMin, th, arm), UITheme.WarmAccent);
+            Quad(mesh, new Rect(b.xMax - arm, b.yMin, arm, th), UITheme.WarmAccent);
+            Quad(mesh, new Rect(b.xMax - th, b.yMin, th, arm), UITheme.WarmAccent);
             return;
         }
         Polygon(mesh, r, 14f, UITheme.HexA("#0A0806", 0.96f), UITheme.HexA("#0A0806", 0.96f));
@@ -24,9 +36,13 @@ public class KnowledgePlateGraphic : Image
         Polygon(mesh, Inset(r, 3f), 12f, UITheme.HexA("#D9A05B", 0.45f), UITheme.HexA("#8A6B3F", 0.45f));
         Polygon(mesh, Inset(r, 7f), 10f, UITheme.Hex("#241C15"), UITheme.Hex("#241C15"));
         Polygon(mesh, Inset(r, 10f), 8f, UITheme.Hex("#2C241D"), UITheme.Hex("#2C241D"));
-        Rect header = new Rect(r.xMin + 10f, r.center.y + 5f, r.width - 20f, r.height * 0.5f - 15f);
-        Polygon(mesh, header, 7f, UITheme.Hex("#322A22"), UITheme.Hex("#2C241D"));
-        Quad(mesh, new Rect(r.xMin + 18f, r.center.y + 4f, r.width - 36f, 2f), UITheme.HexA("#D9A05B", 0.6f));
+        Rect header = new Rect(r.xMin + 10f, r.yMax - 82f, r.width - 20f, 72f);
+        Color headerTint = Color.Lerp(UITheme.Hex("#2C241D"), UITheme.Hex("#322A22"), 0.55f);
+        Polygon(mesh, header, 7f, headerTint, headerTint);
+        // 分隔线从图标井右侧起笔（不再横穿勋章），宽度随 dividerT 画出。
+        float divX = r.xMin + 116f;
+        float divW = Mathf.Max(0f, r.xMax - 18f - divX) * Mathf.Clamp01(dividerT);
+        if (divW > 0f) Quad(mesh, new Rect(divX, r.yMax - 82f, divW, 2f), UITheme.HexA("#D9A05B", 0.6f));
         for (int side = -1; side <= 1; side += 2)
         {
             float x = side < 0 ? r.xMin + 20f : r.xMax - 26f;

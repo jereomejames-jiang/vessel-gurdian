@@ -83,7 +83,7 @@ public class Enemy : MonoBehaviour
     // Enemies steer straight at the player and use trigger colliders, so without
     // a separation force they pile into a single overlapping blob.
     static readonly List<Enemy> alive = new List<Enemy>();
-    const float SeparationRadius = 0.55f;
+    public float separationRadius = 0.55f;
     const float SeparationStrength = 1.6f;
 
     void OnEnable() { alive.Add(this); }
@@ -100,14 +100,15 @@ public class Enemy : MonoBehaviour
             Vector2 otherPos = other.rb != null ? other.rb.position : (Vector2)other.transform.position;
             Vector2 delta = pos - otherPos;
             float dist = delta.magnitude;
-            if (dist >= SeparationRadius) continue;
+            float pairRadius = (separationRadius + other.separationRadius) * 0.5f;
+            if (dist >= pairRadius) continue;
             if (dist < 0.0001f)
             {
                 delta = UnityEngine.Random.insideUnitCircle;
                 dist = delta.magnitude;
                 if (dist < 0.0001f) continue;
             }
-            push += delta / dist * (1f - dist / SeparationRadius);
+            push += delta / dist * (1f - dist / pairRadius);
         }
         if (push.sqrMagnitude > 1f) push.Normalize();
         return push * SeparationStrength;

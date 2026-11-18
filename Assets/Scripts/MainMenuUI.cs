@@ -633,12 +633,20 @@ public class MainMenuUI : MonoBehaviour
             topAccent.raycastTarget = false;
         }
 
-        PlaceText(canvas.transform, "GameTitle", new Vector2(0f, -78f), new Vector2(900f, 86f), UITheme.Display);
-        PlaceText(canvas.transform, "GameSubtitle", new Vector2(0f, -150f), new Vector2(800f, 58f), UITheme.Title);
-        PlaceText(canvas.transform, "GameDescription", new Vector2(0f, -202f), new Vector2(800f, 38f), UITheme.Body);
+        // task1：删英文 VESSELGUARD 与旧「血 管 守 卫」副题，换「血管守卫者」大字 + 心电脉冲线。
+        HideMenuObject(canvas.transform, "TopAccent");
+        HideMenuObject(canvas.transform, "GameSubtitle");
+        PlaceText(canvas.transform, "GameTitle", new Vector2(0f, -125f), new Vector2(900f, 110f), UITheme.Display);
+        PlaceText(canvas.transform, "GameDescription", new Vector2(0f, -235f), new Vector2(800f, 38f), UITheme.Body);
         StyleMenuText(canvas.transform, "GameTitle", UITheme.Display, UITheme.TextPrimary, true);
-        StyleMenuText(canvas.transform, "GameSubtitle", UITheme.Title, UITheme.WarmSoft, true);
         StyleMenuText(canvas.transform, "GameDescription", UITheme.Body, UITheme.TextMuted, false);
+        Transform titleT = FindChild(canvas.transform, "GameTitle");
+        if (titleT != null)
+        {
+            Text titleLabel = titleT.GetComponent<Text>();
+            if (titleLabel != null) titleLabel.text = "血管守卫者";
+        }
+        EnsureTitlePulse(canvas);
 
         PlaceButton(startButton, new Vector2(0f, -365f), new Vector2(360f, 84f), "开始游戏");
         UIManager.StyleWarmButton(startButton, 28);
@@ -698,7 +706,86 @@ public class MainMenuUI : MonoBehaviour
 
     // ── R2-08：主菜单 staged 入场（纯 rise+fade，总时长 0.76s，不阻塞 StartGame 点击）──
     RectTransform footerRule;
+    RectTransform titlePulse;
     Coroutine menuEntrance;
+
+    // 题字下心电脉冲线：青色基线 + 琥珀 QRS 波峰，程序化像素条带（ppu=1，UI 单位=像素）。
+    void EnsureTitlePulse(Canvas canvas)
+    {
+        Transform existing = FindChild(canvas.transform, "TitlePulse");
+        GameObject obj = existing == null ? new GameObject("TitlePulse", typeof(RectTransform), typeof(Image)) : existing.gameObject;
+        obj.transform.SetParent(canvas.transform, false);
+        Image img = obj.GetComponent<Image>();
+        img.sprite = TitlePulseSprite();
+        img.type = Image.Type.Simple;
+        img.color = Color.white;
+        img.raycastTarget = false;
+        titlePulse = obj.GetComponent<RectTransform>();
+        titlePulse.anchorMin = titlePulse.anchorMax = new Vector2(0.5f, 1f);
+        titlePulse.pivot = new Vector2(0.5f, 0.5f);
+        titlePulse.sizeDelta = new Vector2(560f, 44f);
+        titlePulse.anchoredPosition = new Vector2(0f, -190f);
+    }
+
+    static Sprite titlePulseSprite;
+    static Sprite TitlePulseSprite()
+    {
+        if (titlePulseSprite != null) return titlePulseSprite;
+        const int w = 560, h = 44;
+        Texture2D tex = new Texture2D(w, h, TextureFormat.RGBA32, false);
+        tex.filterMode = FilterMode.Point;
+        tex.wrapMode = TextureWrapMode.Clamp;
+        Color[] px = new Color[w * h];
+        Color line = UITheme.HexA("#7FB5AD", 0.55f);
+        Color amber = UITheme.WarmAccent;
+        for (int x = 0; x < w; x++) { px[x + 17 * w] = line; px[x + 18 * w] = line; }
+        Vector2[] pts =
+        {
+            new Vector2(170f, 18f), new Vector2(182f, 34f), new Vector2(194f, 6f),
+            new Vector2(206f, 40f), new Vector2(218f, 14f), new Vector2(230f, 18f)
+        };
+        for (int i = 0; i < pts.Length - 1; i++) PlotLine(px, w, h, pts[i], pts[i + 1], amber, 2);
+        for (int dy = -3; dy <= 3; dy++)
+            for (int dx = -3; dx <= 3; dx++)
+                if (dx * dx + dy * dy <= 9)
+                {
+                    int x = 206 + dx, y = 40 + dy;
+                    if (x >= 0 && x < w && y >= 0 && y < h) px[x + y * w] = amber;
+                }
+        tex.SetPixels(px);
+        tex.Apply();
+        titlePulseSprite = Sprite.Create(tex, new Rect(0f, 0f, w, h), new Vector2(0.5f, 0.5f), 1f);
+        return titlePulseSprite;
+    }
+
+    static void PlotLine(Color[] px, int w, int h, Vector2 a, Vector2 b, Color c, int thick)
+    {
+        int steps = Mathf.CeilToInt(Vector2.Distance(a, b) * 2f);
+        for (int i = 0; i <= steps; i++)
+        {
+            Vector2 p = Vector2.Lerp(a, b, (float)i / steps);
+            for (int dy = 0; dy < thick; dy++)
+                for (int dx = 0; dx < thick; dx++)
+                {
+                    int x = Mathf.RoundToInt(p.x) + dx, y = Mathf.RoundToInt(p.y) + dy;
+                    if (x >= 0 && x < w && y >= 0 && y < h) px[x + y * w] = c;
+                }
+        }
+    }
+
+    System.Collections.IEnumerator PulseOnce()
+    {
+        if (titlePulse == null) yield break;
+        float t = 0f;
+        while (t < 0.7f)
+        {
+            t += Time.unscaledDeltaTime;
+            float s = 1f + 0.04f * Mathf.Sin(Mathf.Clamp01(t / 0.7f) * Mathf.PI);
+            titlePulse.localScale = Vector3.one * s;
+            yield return null;
+        }
+        titlePulse.localScale = Vector3.one;
+    }
 
     void Start()
     {
@@ -713,15 +800,15 @@ public class MainMenuUI : MonoBehaviour
         Transform root = canvas.transform;
         Transform[] seq =
         {
-            FindChild(root, "GameTitle"), FindChild(root, "TopAccent"),
-            FindChild(root, "GameSubtitle"), FindChild(root, "GameDescription"),
+            FindChild(root, "GameTitle"), titlePulse,
+            FindChild(root, "GameDescription"),
             startButton == null ? null : startButton.transform,
             levelSelectButton == null ? null : levelSelectButton.transform,
             settingsButton == null ? null : settingsButton.transform,
             codexButton == null ? null : codexButton.transform,
             FindChild(root, "StatusText"), footerRule
         };
-        float[] delays = { 0f, 0f, 0.08f, 0.16f, 0.24f, 0.32f, 0.40f, 0.40f, 0.48f, 0.48f };
+        float[] delays = { 0f, 0.08f, 0.16f, 0.24f, 0.32f, 0.40f, 0.40f, 0.48f, 0.48f };
         RectTransform[] rects = new RectTransform[seq.Length];
         CanvasGroup[] groups = new CanvasGroup[seq.Length];
         for (int i = 0; i < seq.Length; i++)
@@ -744,6 +831,7 @@ public class MainMenuUI : MonoBehaviour
             // Button 不依赖 alpha，入场期间点击 CTA 仍立即响应。
             StartCoroutine(UIMotion.ModalIn(rects[i], groups[i], 0.28f, 12f, 1f));
         }
+        StartCoroutine(PulseOnce());
         menuEntrance = null;
     }
 

@@ -53,6 +53,9 @@ public class UIManager : MonoBehaviour
     public Button VictoryExitButton;
     // R2-03：HP 条右端数值（纯显示 current/max）。
     Text hpValueText;
+    // task1：等级移到经验条左侧；左上框仅职业 + 职业色竖条。
+    Text xpLevelText;
+    Image roleBand;
     // R2-05：失败结算三行数据。
     Text overStatsText;
     // R2-06：胜利结算双栏 9 组 label/value（旧 VictoryStats 物体隐藏但字段保持非 null）。
@@ -167,20 +170,15 @@ public class UIManager : MonoBehaviour
     void Update()
     {
         if (characterCombat == null) characterCombat = FindAnyObjectByType<CharacterCombat>();
-        if (LevelText != null && playerStats != null)
+        if (LevelText != null && characterCombat != null)
         {
-            string head = "Lv." + playerStats.level;
-            if (characterCombat != null)
-                head += "  " + CharacterCatalog.Name(characterCombat.role);
-            string tail = characterCombat != null ? "· " + characterCombat.rank : "";
-            LevelText.text = head + (tail.Length == 0 ? "" : "  " + UITheme.Wrap(tail, UITheme.TextMuted, UITheme.Label));
+            LevelText.text = CharacterCatalog.Name(characterCombat.role);
+            if (roleBand != null) roleBand.color = UITheme.Role[Mathf.Clamp((int)characterCombat.role, 0, 2)];
         }
+        if (xpLevelText != null && playerStats != null) xpLevelText.text = "Lv." + playerStats.level;
 
         if (TimerText != null && GameManager.Instance != null)
-        {
-            TimerText.text = UITheme.Wrap(GameManager.Instance.selectedLevelName, UITheme.TextMuted, UITheme.Label) +
-                "  " + UITheme.Wrap(FormatTime(GameManager.Instance.GetRemaining()), UITheme.TextPrimary, 26);
-        }
+            TimerText.text = UITheme.Wrap(GameManager.Instance.selectedLevelName, UITheme.TextMuted, UITheme.Label);
 
         if (Input.GetKeyDown(KeyCode.Escape) && !isPausedByMenu)
             TogglePauseMenu();
@@ -289,7 +287,7 @@ public class UIManager : MonoBehaviour
             lastXp = current;
             PulseBar(XPSlider, UITheme.Clinical, ref xpPulse);
         }
-        if (LevelText != null) LevelText.text = "Lv." + level;
+        if (xpLevelText != null) xpLevelText.text = "Lv." + level;
     }
 
     public void ShowChoices(UpgradeOption[] choices)
@@ -453,14 +451,17 @@ public class UIManager : MonoBehaviour
         grid.raycastTarget = false;
         StretchInset(grid.rectTransform, CardChamfer);
 
-        // 编号牌：琥珀实心块 + 深墨字，"病历编号"的理性标注感。
+        // 类别牌：琥珀实心块 + 深墨字（主动/被动/进化，与图鉴同词汇），替换旧 SK-编号。
+        UpgradeType tagType = (UpgradeType)Mathf.Abs(skillSerial);
+        string tagLabel = VesselSkillCatalog.IsPassive(tagType) ? "被动"
+            : VesselSkillCatalog.IsEvolution(tagType) ? "进化" : "主动";
         Image tag = EnsureImageChild(button.transform, "CardTag");
-        Place(tag, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(104f, 22f), new Vector2(CardChamfer, -1f));
+        Place(tag, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(56f, 22f), new Vector2(CardChamfer, -1f));
         tag.color = UITheme.WarmAccent;
 
-        Text tagCode = EnsureCardText(button, "CardTagCode", UITheme.Tag, UITheme.InkOnWarm, TextAnchor.MiddleLeft,
-            new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(CardChamfer + 8f, -1f), new Vector2(96f, 22f), RuntimeFont.GetTitle());
-        tagCode.text = "SK-" + Mathf.Abs(skillSerial).ToString("00");
+        Text tagCode = EnsureCardText(button, "CardTagCode", UITheme.Tag, UITheme.InkOnWarm, TextAnchor.MiddleCenter,
+            new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(CardChamfer, -1f), new Vector2(56f, 22f), RuntimeFont.GetTitle());
+        tagCode.text = tagLabel;
 
         // 中部硬分隔线
         Image divider = EnsureImageChild(button.transform, "CardDivider");
@@ -706,10 +707,7 @@ public class UIManager : MonoBehaviour
         int current = CurrentLevel(option);
         int max = VesselSkillCatalog.MaxLevel(option.type);
         if (VesselSkillCatalog.IsPassive(option.type))
-        {
-            if (current > 0) return "被动 · 已生效";
-            return UnlocksEvolution(option.type) ? "被动 · 选取后解锁进化" : "被动 · 选取后立即生效";
-        }
+            return "Lv 1";
         if (VesselSkillCatalog.IsEvolution(option.type))
             return current > 0 ? "进化 · 已生效" : "进化 · 替换原技能效果";
         if (current <= 0) return "Lv 1";
@@ -1334,7 +1332,7 @@ public class UIManager : MonoBehaviour
             LevelText.fontSize = 22;
             LevelText.color = UITheme.TextPrimary;
             LevelText.supportRichText = true;
-            LevelText.alignment = TextAnchor.MiddleLeft;
+            LevelText.alignment = TextAnchor.MiddleCenter;
             Outline lo = LevelText.GetComponent<Outline>();
             if (lo != null) lo.enabled = false;
             Transform parent = LevelText.transform.parent;
@@ -1352,15 +1350,27 @@ public class UIManager : MonoBehaviour
                 else plateImage = plate.GetComponent<Image>();
                 if (plateImage != null)
                 {
-                    plateImage.sprite = MonsterSurvivorArtLibrary.ChamferFill(232, 44, 8f);
+                    plateImage.sprite = MonsterSurvivorArtLibrary.ChamferFill(128, 44, 8f);
                     plateImage.type = Image.Type.Simple;
                     plateImage.color = UITheme.HexA("#221B16", 0.85f);
                     plateImage.raycastTarget = false;
                     RectTransform pr = plateImage.rectTransform;
                     pr.anchorMin = pr.anchorMax = new Vector2(0f, 1f);
                     pr.pivot = new Vector2(0f, 1f);
-                    pr.sizeDelta = new Vector2(232f, 44f);
+                    pr.sizeDelta = new Vector2(128f, 44f);
                     pr.anchoredPosition = new Vector2(24f, -22f);
+                    Transform bandT = plateImage.transform.Find("RoleBand");
+                    GameObject bandObj = bandT == null ? new GameObject("RoleBand", typeof(RectTransform), typeof(Image)) : bandT.gameObject;
+                    bandObj.transform.SetParent(plateImage.transform, false);
+                    roleBand = bandObj.GetComponent<Image>();
+                    roleBand.sprite = null; roleBand.type = Image.Type.Simple;
+                    roleBand.raycastTarget = false;
+                    RectTransform br = roleBand.rectTransform;
+                    br.anchorMin = br.anchorMax = new Vector2(0f, 0.5f);
+                    br.pivot = new Vector2(0f, 0.5f);
+                    br.sizeDelta = new Vector2(4f, 24f);
+                    br.anchoredPosition = new Vector2(10f, 0f);
+                    roleBand.color = UITheme.Role[0];
                 }
             }
         }
@@ -1398,7 +1408,7 @@ public class UIManager : MonoBehaviour
             new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(24f, -72f), new Vector2(56f, 56f));
 
         PlaceHudRect(LevelText == null ? null : LevelText.rectTransform,
-            new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(24f, -22f), new Vector2(232f, 44f));
+            new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(24f, -22f), new Vector2(128f, 44f));
         PlaceHudRect(RunHudRoot,
             new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -18f), new Vector2(618f, 48f));
         PlaceHudRect(HPSlider == null ? null : HPSlider.GetComponent<RectTransform>(),
@@ -1406,12 +1416,30 @@ public class UIManager : MonoBehaviour
         PlaceHudRect(TimerText == null ? null : TimerText.rectTransform,
             new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -116f), new Vector2(340f, 40f));
 
-        RectTransform canvasRect = canvas.GetComponent<RectTransform>();
-        float referenceWidth = canvasRect == null ? 1920f : canvasRect.rect.width;
+        // 宽度匹配模式下 canvas 单位宽恒等于参考分辨率宽；Awake 时 rect 尚未被 scaler 驱动，不能读 rect。
+        var scaler = canvas.GetComponent<CanvasScaler>();
+        float referenceWidth = scaler != null && scaler.uiScaleMode == CanvasScaler.ScaleMode.ScaleWithScreenSize
+            ? scaler.referenceResolution.x : 1920f;
         if (referenceWidth < 100f) referenceWidth = 1920f;
         float bottomBarWidth = Mathf.Min(1180f, referenceWidth * 0.618034f);
         PlaceHudRect(XPSlider == null ? null : XPSlider.GetComponent<RectTransform>(),
             new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 22f), new Vector2(bottomBarWidth, 16f));
+        if (xpLevelText == null)
+        {
+            GameObject lvObj = new GameObject("XPLevelText", typeof(RectTransform), typeof(Text));
+            lvObj.transform.SetParent(canvas.transform, false);
+            xpLevelText = lvObj.GetComponent<Text>();
+            xpLevelText.font = RuntimeFont.GetTitle();
+            xpLevelText.fontSize = 18;
+            xpLevelText.color = UITheme.WarmSoft;
+            xpLevelText.alignment = TextAnchor.MiddleRight;
+            // 行高≈1.34×字号，盒高必须大于行高，否则 Truncate 整行丢弃导致文字不渲染。
+            xpLevelText.verticalOverflow = VerticalWrapMode.Overflow;
+            xpLevelText.raycastTarget = false;
+            xpLevelText.text = "Lv.1";
+        }
+        PlaceHudRect(xpLevelText.rectTransform,
+            new Vector2(0.5f, 0f), new Vector2(1f, 0.5f), new Vector2(-bottomBarWidth / 2f - 12f, 30f), new Vector2(80f, 32f));
 
         PlaceHudRect(pauseButton == null ? null : pauseButton.GetComponent<RectTransform>(),
             Vector2.one, Vector2.one, new Vector2(-82f, -38f), new Vector2(126f, 52f));
@@ -1421,7 +1449,7 @@ public class UIManager : MonoBehaviour
             Vector2.one, Vector2.one, new Vector2(-362f, -38f), new Vector2(126f, 52f));
         Button codex = FindChild<Button>(canvas.transform, "CodexButton");
         PlaceHudRect(codex == null ? null : codex.GetComponent<RectTransform>(),
-            Vector2.one, Vector2.one, new Vector2(-126f, -116f), new Vector2(220f, 54f));
+            Vector2.one, Vector2.one, new Vector2(-82f, -110f), new Vector2(220f, 54f));
 
         // Upgrade cards keep a 1:φ portrait silhouette; the result card uses φ landscape.
         if (choiceButtons != null)

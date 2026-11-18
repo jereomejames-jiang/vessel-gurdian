@@ -340,9 +340,11 @@ public class SkillCodexManager : MonoBehaviour
         displayFont = RuntimeFont.Get();
         if (isGameplay && codexButton == null)
         {
-            codexButton = MakeButton(canvas.transform, "CodexButton", "血管图鉴", new Vector2(-130f, -110f), new Vector2(190f, 50f));
+            codexButton = MakeButton(canvas.transform, "CodexButton", "血管图鉴", new Vector2(-82f, -110f), new Vector2(220f, 54f));
             RectTransform buttonRect = codexButton.GetComponent<RectTransform>();
             buttonRect.anchorMin = buttonRect.anchorMax = new Vector2(1f, 1f);
+            // MakeButton 默认中心 pivot；不改则 anchoredPosition 是中心点，顶边会插进暂停按钮底边。
+            buttonRect.pivot = new Vector2(1f, 1f);
             ColorBlock cb = codexButton.colors;
             cb.normalColor = UITheme.Surface;
             cb.highlightedColor = UITheme.SurfaceRaised;

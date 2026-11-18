@@ -29,6 +29,7 @@ public class EnemySpawner : MonoBehaviour
     public int packSizeMin = 2;
     public int packSizeMax = 4;
     public BossArenaController arena;
+    public PlayerStats playerStats;
 
     public void Start()
     {
@@ -101,6 +102,16 @@ public class EnemySpawner : MonoBehaviour
         }
     }
 
+    // 细胞影每批数量随玩家等级 1/2/3，压前期升级速度。
+    public int GetCellPackSize()
+    {
+        if (playerStats == null && player != null) playerStats = player.GetComponent<PlayerStats>();
+        int lv = playerStats != null ? playerStats.level : 1;
+        if (lv <= 3) return GameBalance.GetInt("spawn.cell_pack_lv3", 1);
+        if (lv <= 5) return GameBalance.GetInt("spawn.cell_pack_lv5", 2);
+        return GameBalance.GetInt("spawn.cell_pack_lv6", 3);
+    }
+
     public float GetSpawnInterval()
     {
         float levelPressure = (stageIndex - 1) * GameBalance.Get("spawn.interval_stage_factor", 0.18f);
@@ -124,7 +135,10 @@ public class EnemySpawner : MonoBehaviour
         }
         Vector3 position = GetSpawnPosition();
         // Spawn in small packs so the field feels alive instead of a sparse trickle.
-        int packSize = kind == EnemyKind.SpikeSoldier ? spikeClusterSize : Random.Range(packSizeMin, packSizeMax + 1);
+        int packSize;
+        if (kind == EnemyKind.SpikeSoldier) packSize = spikeClusterSize;
+        else if (kind == EnemyKind.CellShadow) packSize = GetCellPackSize();
+        else packSize = Random.Range(packSizeMin, packSizeMax + 1);
         for (int i = 0; i < packSize && trackedEnemies.Count < maxActiveEnemies; i++)
         {
             Vector2 offset = i == 0 ? Vector2.zero : Random.insideUnitCircle * GameBalance.Get("spawn.batch_offset", 1.2f);
@@ -166,8 +180,8 @@ public class EnemySpawner : MonoBehaviour
         switch (stageIndex * 10 + phase)
         {
             case 11: return ChooseWeightedKind(prefix, roll, 100, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
-            case 12: return ChooseWeightedKind(prefix, roll, 60, 25, 15, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
-            case 13: return ChooseWeightedKind(prefix, roll, 30, 20, 20, 15, 15, 0, 0, 0, 0, 0, 0, 0, 0);
+            case 12: return ChooseWeightedKind(prefix, roll, 30, 70, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+            case 13: return ChooseWeightedKind(prefix, roll, 0, 30, 40, 15, 15, 0, 0, 0, 0, 0, 0, 0, 0);
             case 21: return ChooseWeightedKind(prefix, roll, 0, 0, 0, 0, 0, 60, 40, 0, 0, 0, 0, 0, 0);
             case 22: return ChooseWeightedKind(prefix, roll, 0, 0, 0, 0, 0, 35, 30, 35, 0, 0, 0, 0, 0);
             case 23: return ChooseWeightedKind(prefix, roll, 0, 0, 0, 0, 0, 25, 20, 30, 25, 0, 0, 0, 0);
@@ -342,10 +356,20 @@ public class EnemySpawner : MonoBehaviour
         float rawHalfH = cam != null ? cam.orthographicSize : 7.2f;
         float aspect = cam != null ? cam.aspect : 16f / 9f;
         float margin = GameBalance.Get("boss.arena_margin", 0.95f);
+        float arenaScale = GameBalance.Get("boss.arena_scale", 1.2f);
         Vector2 arenaCenter = player.position;
-        Vector2 halfExtents = new Vector2(rawHalfH * aspect * margin, rawHalfH * margin);
+        Vector2 halfExtents = new Vector2(rawHalfH * aspect * margin, rawHalfH * margin) * arenaScale;
 
         // 3) 清除全场小怪与残留危险区，并吸入所有经验球。
+        // 死亡动画中的敌人不在 tracked 列表，且延迟死亡走实时等待——会在时停期间吐球漏进竞技场；
+        // 先强制结算（吐球+计击杀），再清场，最后扫球，经验一并吸入。
+        Enemy[] remaining = FindObjectsByType<Enemy>(FindObjectsSortMode.None);
+        for (int i = 0; i < remaining.Length; i++)
+        {
+            if (remaining[i] == null) continue;
+            if (remaining[i].deathPending) remaining[i].FinalizeDeath();
+            else Destroy(remaining[i].gameObject);
+        }
         ClearAllEnemies();
         ExperienceOrb[] orbs = FindObjectsByType<ExperienceOrb>(FindObjectsSortMode.None);
         for (int i = 0; i < orbs.Length; i++) if (orbs[i] != null) orbs[i].CollectImmediate();

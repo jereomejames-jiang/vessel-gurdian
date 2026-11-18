@@ -46,7 +46,7 @@ public static class UITheme
     }
 
     // ── 字号层级（参考 px）──
-    public const int Display = 62, Title = 30, CardTitle = 26, Subtitle = 22,
+    public const int Display = 76, Title = 30, CardTitle = 26, Subtitle = 22,
                      Body = 18, Value = 20, Label = 15, Tag = 14;
 
     // rich text 用的不带 alpha hex（<color=#RRGGBB>）。

@@ -97,6 +97,10 @@ public static class MonsterSurvivorArtLibrary
     {
         { "character_doctor", new SheetSpec(5, 75, 0.5f) },
         { "character_doctor_attack", new SheetSpec(5, 75, 0.5f) },
+        { "enemy_ruptured", new SheetSpec(8, 64, 0.5f) },
+        { "character_nurse", new SheetSpec(4, 52, 0.5f) },
+        { "character_pharmacist", new SheetSpec(4, 33, 0.5f) },
+        { "enemy_sickle", new SheetSpec(6, 40, 0.5f) },
     };
 
     // 真实导入的序列图优先于程序化占位，美术素材到位就直接顶掉生成图。
@@ -185,8 +189,8 @@ public static class MonsterSurvivorArtLibrary
         switch (kind)
         {
             case EnemyKind.CellShadow: return "enemy_cell_shadow";
-            case EnemyKind.SpikeSoldier: return "enemy_bat";
-            case EnemyKind.RupturedCell: return "enemy_pumpkin";
+            case EnemyKind.SpikeSoldier: return "enemy_sickle";
+            case EnemyKind.RupturedCell: return "enemy_ruptured";
             case EnemyKind.MicroThrombus: return "enemy_eye";
             case EnemyKind.BleedingGap: return "enemy_jellyfish";
             case EnemyKind.VenousStasis: return "enemy_slime";
@@ -241,6 +245,18 @@ public static class MonsterSurvivorArtLibrary
     // 根节点缩放决定碰撞体/护盾/轨道的世界尺寸，必须保持旧值以免难度变化；
     // 视觉放大只加在子节点上，二者解耦。
     const float ColliderBaseHeight = 1.65f;
+    // 玩家碰撞用世界常量躯干盒：根缩放随美术帧高漂移，序列化盒直接乘缩放会"空气受伤"。
+    static readonly Vector2 PlayerHitboxWorld = new Vector2(0.75f, 1.05f);
+    const float PlayerHitboxOffsetY = -0.15f;
+
+    static void FitPlayerHitbox(GameObject player)
+    {
+        BoxCollider2D col = player.GetComponent<BoxCollider2D>();
+        float root = player.transform.localScale.x;
+        if (col == null || root <= 0.0001f) return;
+        col.size = PlayerHitboxWorld / root;
+        col.offset = new Vector2(0f, PlayerHitboxOffsetY / root);
+    }
 
     // worldHeight 是整张帧在世界上占多高，不是缩放倍数：
     // 美术组的条带是 64px 高、程序化占位是 96px 高，用固定倍数缩放会让真素材
@@ -280,6 +296,7 @@ public static class MonsterSurvivorArtLibrary
         {
             player.transform.localScale = Vector3.one * (ColliderBaseHeight * unit);
             visualRoot.localScale = Vector3.one * (worldHeight / ColliderBaseHeight);
+            FitPlayerHitbox(player);
         }
         else
         {
@@ -305,17 +322,28 @@ public static class MonsterSurvivorArtLibrary
         }
         renderer.sprite = frames[0]; renderer.color = Color.white;
         renderer.sortingOrder = kind == EnemyKind.NodeBoss ? 4 : 2;
-        float scale = kind == EnemyKind.NodeBoss ? 2.0f : (kind == EnemyKind.SpikeSoldier ? 1.12f : 1.18f);
+        float scale = kind == EnemyKind.NodeBoss ? 2.0f : 1.18f;
         if (kind == EnemyKind.ArteryEmbolism) scale = 0.95f;
         else if (kind == EnemyKind.SheddingEmbolus) scale = 1.0f;
         else if (kind == EnemyKind.PressureSpray) scale = 0.62f;
         else if (kind == EnemyKind.SideEffectGap) scale = 1.2f;
+        else if (kind == EnemyKind.RupturedCell) scale = GameBalance.Get("enemy.ruptured.scale", 1.18f);
+        else if (kind == EnemyKind.SpikeSoldier) scale = GameBalance.Get("enemy.spike.scale", 1.12f);
         // MicroThrombus renders as an elongated clot rather than a round blob.
         enemyObject.transform.localScale = kind == EnemyKind.MicroThrombus ? new Vector3(2.3f, 0.9f, 1f) : Vector3.one * scale;
         MonsterSurvivorSpriteAnimator animator = enemyObject.GetComponent<MonsterSurvivorSpriteAnimator>();
         if (animator == null) animator = enemyObject.AddComponent<MonsterSurvivorSpriteAnimator>();
-        animator.SetFrames(frames, kind == EnemyKind.NodeBoss ? 5f : 8f);
+        float fps = kind == EnemyKind.NodeBoss ? 5f
+            : kind == EnemyKind.RupturedCell ? GameBalance.Get("enemy.ruptured.fps", 5f)
+            : kind == EnemyKind.SpikeSoldier ? GameBalance.Get("enemy.spike.fps", 8f) : 8f;
+        animator.SetFrames(frames, fps);
         Enemy enemy = enemyObject.GetComponent<Enemy>(); if (enemy != null) enemy.visualColor = Color.white;
+        // 碰撞贴合可见轮廓×0.9（方形怪保持旧手感）；分离半径取碰撞半宽，大怪不叠成一团。
+        Bounds hitBounds = renderer.sprite.bounds;
+        BoxCollider2D hitCol = enemyObject.GetComponent<BoxCollider2D>();
+        if (hitCol != null) { hitCol.size = hitBounds.size * 0.9f; hitCol.offset = hitBounds.center; }
+        if (enemy != null)
+            enemy.separationRadius = Mathf.Max(0.35f, hitBounds.size.x * 0.9f * enemyObject.transform.localScale.x * 0.5f);
         // 动脉新怪以淡色 tint 与静脉同类区分（素材本体不变）。
         Color arteryTint = Color.white;
         if (kind == EnemyKind.ArteryEmbolism) arteryTint = new Color(1f, 0.62f, 0.62f, 1f);
